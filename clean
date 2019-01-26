@@ -20,6 +20,10 @@
 #
 #	Johannes Bauer <JohannesBauer@gmx.de>
 
+if [ "$1" == "-f" ]; then
+	git reset --hard origin/master
+	git pull
+fi
 cp config.json /tmp
 git clean -dfx
 cp /tmp/config.json .
