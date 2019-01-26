@@ -29,6 +29,7 @@ from .Tools import cache_result
 
 class Controller():
 	_IP_ADDR_RE = re.compile(r"\s+inet (?P<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/(?P<subnet>\d{1,2})")
+	_QUOTA_RE = re.compile(r"^(?P<username>[a-zA-Z][a-zA-Z0-9]*)\s+--\s+(?P<used>\d+)\s+(?P<soft>\d+)\s+(?P<hard>\d+)\s+")
 
 	def __init__(self, app):
 		self._app = app
@@ -138,7 +139,21 @@ class Controller():
 	@cache_result(60)
 	def quota_info(self):
 		raw_output = subprocess.check_output([ "sudo", "/usr/sbin/repquota", self._config["storage"]["datamnt"] ]).decode("utf-8")
+		quotas = { }
+		search = False
+		for line in raw_output.split("\n"):
+			if line.startswith("------"):
+				search = True
+			elif search:
+				match = self._QUOTA_RE.match(line)
+				if match:
+					match = match.groupdict()
+					quotas[match["username"]] = {
+						"hard":		int(match["hard"]) * 1024,
+						"used":		int(match["used"]) * 1024,
+					}
 		return {
+			"parsed":	quotas,
 			"raw":		raw_output,
 		}
 

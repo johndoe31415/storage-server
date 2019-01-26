@@ -108,14 +108,14 @@
 
 		function update_sizefloat(sizefloat, data) {
 			let total, used;
-			console.log(data);
-			if (sizefloat.getAttribute("name") == "#") {
+			const name = sizefloat.getAttribute("name");
+			if (name == "#") {
 				/* Total */
 				total = data["df"]["total"];
 				used = data["df"]["used"];
 			} else {
-				total = 1000000;
-				used = 12345;
+				total = data["quota"]["parsed"][name]["hard"];
+				used = data["quota"]["parsed"][name]["used"];
 			}
 			sizefloat.querySelector(".spc_used").innerHTML = format_space(used);
 			sizefloat.querySelector(".spc_total").innerHTML = format_space(total);
