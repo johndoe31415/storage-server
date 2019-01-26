@@ -16,6 +16,7 @@
 					<span class="pure-menu-heading"><span id="user">/</span> @ Storage</span>
 					<span class="pure-menu-heading"><a href="https://${config['ilo']['fqdn']}:${config['ilo']['https_port']}">ILO</a></span>
 					<span class="pure-menu-heading">Uptime <span id="uptime"></span>, CPU usage <span id="cpu"></span></span>
+					<span class="pure-menu-heading">⬆ <span id="tx"></span> ⬇ <span id="rx"></span></span>
 
 					<ul class="pure-menu-list">
 						<li class="pure-menu-item"><a href="#" class="pure-menu-link" onclick="perform_action('inhibit_toggle');">Inhibit</a></li>
@@ -76,6 +77,8 @@
 		const elem_raw_md = document.getElementById("raw_md");
 		const elem_uptime = document.getElementById("uptime");
 		const elem_cpu = document.getElementById("cpu");
+		const elem_tx = document.getElementById("tx");
+		const elem_rx = document.getElementById("rx");
 
 		function update_sizefloat(sizefloat, data) {
 			let total, used;
@@ -102,6 +105,8 @@
 			elem_uptime.innerHTML = format_time(data["uptime"]);
 			elem_cpu.innerHTML = format_cpu(data["uptime"], data["idletime"], data["cpucount"]);
 			document.querySelectorAll(".sizefloat").forEach(function(sizefloat) { update_sizefloat(sizefloat, data); });
+			elem_tx.innerHTML = format_space(data["netif"]["tx_speed"]) + "/s";
+			elem_rx.innerHTML = format_space(data["netif"]["rx_speed"]) + "/s";
 		}
 
 		function trigger_update_data() {
