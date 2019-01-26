@@ -1,0 +1,105 @@
+#!/usr/bin/python3
+#	storage-server - Integrated remote backup solution
+#	Copyright (C) 2019-2019 Johannes Bauer
+#
+#	This file is part of storage-server.
+#
+#	storage-server is free software; you can redistribute it and/or modify
+#	it under the terms of the GNU General Public License as published by
+#	the Free Software Foundation; this program is ONLY licensed under
+#	version 3 of the License, later versions are explicitly excluded.
+#
+#	storage-server is distributed in the hope that it will be useful,
+#	but WITHOUT ANY WARRANTY; without even the implied warranty of
+#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#	GNU General Public License for more details.
+#
+#	You should have received a copy of the GNU General Public License
+#	along with storage-server; if not, write to the Free Software
+#	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#	Johannes Bauer <JohannesBauer@gmx.de>
+
+import sys
+import os
+import json
+import time
+import subprocess
+
+config_filename = os.path.realpath(os.path.expanduser("~/.config/jbin/backup/storage_backup.json"))
+if not os.path.isfile(config_filename):
+	try:
+		os.makedirs(os.path.dirname(config_filename))
+	except FileExistsError:
+		pass
+	default_config = {
+		"REMOVE_BEFORE_USAGE":		True,
+		"storage_fqdn":				"storage.dyn.example.com",
+		"storage_port":				22,
+		"wakeup_uri":				"https://ilo.dyn.example.com:8443/action_on.py",
+		"username":					os.environ.get("USER", "joe"),
+		"remote_path":				"restic/",
+		"passphrase_file":			"/etc/restic_key.txt",
+		"CA_filename":				"~/.config/jbin/backup/CA.crt",
+		"client_cert_p12":			"~/.config/jbin/backup/client.p12",
+		"max_wait_secs":			60,	
+		"restic_bin":				"/usr/bin/restic",
+		"excludes":					[ "/proc", "/sys", "/dev", "/var/cache/apt/archives", "/run/user", "/tmp" ],
+		"backup_path":				"/",
+	}
+	with open(config_filename, "w") as f:
+		json.dump(default_config, f, sort_keys = True, indent = 4)
+
+with open(config_filename, "r") as f:
+	config = json.load(f)
+
+if "REMOVE_BEFORE_USAGE" in config:
+	print("System is unconfigured. Edit config file: %s" % (config_filename))
+	print("Remember to remove the 'REMOVE_BEFORE_USAGE' key.")
+	sys.exit(1)
+
+config["CA_filename"] = os.path.realpath(os.path.expanduser(config["CA_filename"]))
+config["client_cert_p12"] = os.path.realpath(os.path.expanduser(config["client_cert_p12"]))
+config["passphrase_file"] = os.path.realpath(os.path.expanduser(config["passphrase_file"]))
+
+if not os.path.isfile(config["CA_filename"]):
+	print("Root CA file does not exist: %s" % (config["CA_filename"]))
+	sys.exit(1)
+if not os.path.isfile(config["client_cert_p12"]):
+	print("Client certificate PKCS#12 file does not exist: %s" % (config["client_cert_p12"]))
+	sys.exit(1)
+if not os.path.isfile(config["passphrase_file"]):
+	print("Passphrase file does not exist: %s" % (config["passphrase_file"]))
+	print("Suggested passphrase: %s" % (os.urandom(32).hex()))
+	sys.exit(1)
+
+# Wake up machine.
+subprocess.check_call([ "curl", "--cacert", config["CA_filename"], "--tlsv1.2", "--cert-type", "P12", "--cert", config["client_cert_p12"], config["wakeup_uri"] ])
+
+timeout = time.time() + config["max_wait_secs"]
+host_up = False
+while time.time() < timeout:
+	try:
+		subprocess.check_output([ "sftp", "-P", str(config["storage_port"]), "%s@%s" % (config["username"], config["storage_fqdn"]) ], input = b"ls /\n", stderr = subprocess.DEVNULL)
+		# Host is up!
+		host_up = True
+		break
+	except subprocess.CalledProcessError:
+		# Not up yet. Try again.
+		time.sleep(3)
+
+if not host_up:
+	print("Could not wake %s after %d seconds." % (config["storage_fqdn"], config["max_wait_secs"]))
+	sys.exit(1)
+
+cmdline = [ config["restic_bin"], "backup", "-p", config["passphrase_file"], "-r", "sftp://%s@%s:%d/%s" % (config["username"], config["storage_fqdn"], config["storage_port"], config["remote_path"]) ]
+for exclude in config["excludes"]:
+	cmdline += [ "--exclude", exclude ]
+cmdline += config["backup_path"]
+
+cmdline_str = " ".join(cmdline)
+sudoers_line = "%s ALL=NOPASSWD: %s" % (os.environ.get("USER", "???"), cmdline_str.replace(":", r"\:"))
+print(sudoers_line)
+
+sudo_cmd = [ "sudo", "-u", "root" ] + cmdline
+subprocess.check_call(sudo_cmd)
