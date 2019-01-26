@@ -36,6 +36,8 @@ if [ "$1" == "ilo" ]; then
 	install "ilo/conf/apache2/conf-enabled/security.conf" "/etc/conf/apache2/conf-enabled/security.conf" 644 root:root
 	install "ilo/conf/apache2/mods-enabled/ssl.conf" "/etc/conf/apache2/mods-enabled/ssl.conf" 644 root:root
 	install "ilo/conf/apache2/sites-enabled/000-default.conf" "/etc/conf/apache2/sites-enabled/000-default.conf" 644 root:root
+
+	systemctl restart apache2
 elif [ "$1" == "storage" ]; then
 	echo "Not implemented."
 else
