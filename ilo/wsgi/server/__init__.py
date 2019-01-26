@@ -20,7 +20,7 @@
 #	Johannes Bauer <JohannesBauer@gmx.de>
 
 import os
-from flask import Flask, send_from_directory, jsonify
+from flask import Flask, send_from_directory, jsonify, request
 from .Controller import Controller
 from .Tools import Tools
 
@@ -45,7 +45,7 @@ def status():
 		"storage_online":	ctrlr.storage_online,
 		"storage_powered":	ctrlr.storage_powered,
 		"ip":				ctrlr.ip_info,
-		"user":				os.environ.get("SSL_CLIENT_S_DN_CN"),
+		"user":				request.environ.get("SSL_CLIENT_S_DN_CN"),
 	}
 	return jsonify(result)
 
