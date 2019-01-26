@@ -25,6 +25,9 @@
 			<div class="splash-container">
 				<div class="splash">
 					<h1 id="splash" class="splash-head">N/A</h1>
+					<p class="splash-subhead">
+						ILO total uptime <span id="ilo_uptime_total"></span>, storage total uptime <span id="storage_uptime_total"></span>. <span id="storage_reboots_total"></span> storage boots, <span id="storage_average_ontime"></span> average on-time, last seen at <span id="storage_lastseen"></span>.
+					</p>
 				</div>
 			</div>
 
@@ -57,7 +60,7 @@
 			const days = (secs / 86400) | 0;
 			const hours = (secs % 86400 / 3600) | 0;
 			const minutes = (secs % 86400 % 3600 / 60) | 0;
-			return sprintf("%dd-%02d:%02d", days, hours, minutes);
+			return sprintf("%dd %02d:%02d h:m", days, hours, minutes);
 		}
 
 		function format_cpu(uptime, idletime, cpucount) {
@@ -66,12 +69,22 @@
 			return sprintf("%.1f%%", 100 * busy_ratio);
 		}
 
+		function format_timet(timet) {
+			const datetime = new Date(timet);
+			return datetime.toLocaleString();
+		}
+
 		const elem_content = document.getElementById("content");
 		const elem_user= document.getElementById("user");
 		const elem_raw_ip = document.getElementById("raw_ip");
 		const elem_uptime = document.getElementById("uptime");
 		const elem_cpu = document.getElementById("cpu");
 		const elem_splash = document.getElementById("splash");
+		const elem_ilo_uptime_total = document.getElementById("ilo_uptime_total");
+		const elem_storage_uptime_total = document.getElementById("storage_uptime_total");
+		const elem_storage_reboots_total = document.getElementById("storage_reboots_total");
+		const elem_storage_average_ontime = document.getElementById("storage_average_ontime");
+		const elem_storage_lastseen = document.getElementById("storage_lastseen");
 
 		function updated_data_recvd(data) {
 			elem_content.style.display = "";
@@ -89,6 +102,19 @@
 			} else {
 				elem_splash.style.backgroundColor = "#e74c3c";
 				elem_splash.innerText = "Storage Stopped";
+			}
+
+			if (data["monitor"] != null) {
+				elem_ilo_uptime_total.innerHTML = format_time(data["monitor"]["uptime_ilo"]);
+				elem_storage_uptime_total.innerHTML = format_time(data["monitor"]["uptime_storage"]);
+				elem_storage_reboots_total.innerHTML = data["monitor"]["storage_reboots"];
+				const avg_storage_time = data["monitor"]["uptime_storage"] / data["monitor"]["storage_reboots"];
+				elem_storage_average_ontime.innerHTML = format_time(avg_storage_time);
+				if (data["monitor"]["storage_last_seen"] == null) {
+					elem_storage_lastseen.innerHTML = "never";
+				} else {
+					elem_storage_lastseen.innerHTML = format_timet(data["monitor"]["storage_last_seen"]);
+				}
 			}
 		}
 
