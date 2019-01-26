@@ -30,7 +30,7 @@
 						<div class="progress"></div>
 						<span class="spc_free"></span> free
 					</div>
-					%for user in ${config['users']}:
+					%for user in config['users']:
 					<div class="sizefloat" name="${user}">
 						${user}<br />
 						<span class="spc_used"></span> / <span class="spc_total"></span>
