@@ -50,7 +50,23 @@ if [ "$1" == "ilo" ]; then
 	systemctl start monitor_uptime
 	systemctl restart apache2
 elif [ "$1" == "storage" ]; then
-	echo "Not implemented."
+	chmod 644 config.json
+	chmod 755 .
+	chmod 755 storage
+	chmod 755 storage/wsgi
+	chown -R www-data:www-data storage/wsgi
+	chown -R www-data:www-data storage/templates
+	chown -R www-data:www-data storage/docroot
+
+	install "storage/conf/apache2/ports.conf" "/etc/apache2/ports.conf" 644 root:root
+	install "storage/conf/apache2/conf-enabled/security.conf" "/etc/apache2/conf-enabled/security.conf" 644 root:root
+	install "storage/conf/apache2/mods-enabled/ssl.conf" "/etc/apache2/mods-enabled/ssl.conf" 644 root:root
+	install "storage/conf/apache2/sites-enabled/000-default.conf" "/etc/apache2/sites-enabled/000-default.conf" 644 root:root
+	install "storage/services/auto_shutoff.service" "/etc/systemd/system/auto_shutoff.service" 644 root:root
+
+	systemctl enable auto_shutoff
+	systemctl start auto_shutoff
+	systemctl restart apache2
 else
 	echo "$0 [ilo|storage]"
 	exit 1

@@ -1,0 +1,10 @@
+[Unit]
+Description=auto shutoff service
+
+[Service]
+Type=simple
+ExecStart=${rootdir}/storage/services/auto_shutoff ${rootdir}/config.json
+WorkingDirectory=${rootdir}
+
+[Install]
+WantedBy=multi-user.target

@@ -36,7 +36,7 @@ if not os.path.isfile(config_filename):
 		"REMOVE_BEFORE_USAGE":		True,
 		"storage_fqdn":				"storage.dyn.example.com",
 		"storage_port":				22,
-		"wakeup_uri":				"https://ilo.dyn.example.com:8443/action_on.py",
+		"wakeup_uri":				"https://ilo.dyn.example.com:8443/action/turn_on",
 		"username":					os.environ.get("USER", "joe"),
 		"remote_path":				"restic/",
 		"passphrase_file":			"/etc/restic_key.txt",

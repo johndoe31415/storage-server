@@ -1,0 +1,78 @@
+#!/usr/bin/python3
+#	storage-server - Integrated remote backup solution
+#	Copyright (C) 2019-2019 Johannes Bauer
+#
+#	This file is part of storage-server.
+#
+#	storage-server is free software; you can redistribute it and/or modify
+#	it under the terms of the GNU General Public License as published by
+#	the Free Software Foundation; this program is ONLY licensed under
+#	version 3 of the License, later versions are explicitly excluded.
+#
+#	storage-server is distributed in the hope that it will be useful,
+#	but WITHOUT ANY WARRANTY; without even the implied warranty of
+#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#	GNU General Public License for more details.
+#
+#	You should have received a copy of the GNU General Public License
+#	along with storage-server; if not, write to the Free Software
+#	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#	Johannes Bauer <JohannesBauer@gmx.de>
+
+import os
+import time
+import subprocess
+
+class AutoShutdown():
+	def __init__(self):
+		self._checktime_secs = 30
+		self._shutoff_after = 15 * 60
+		self._watchfile = "/dev/shm/shutoff_watchfile"
+		self._inhibitfile = "/dev/shm/shutoff_inhibit"
+		self._shutoff_at = None
+		self._reset_timer()
+
+	def _have_open_connections(self):
+		netstat = subprocess.check_output([ "netstat", "-tn" ]).decode("utf-8").split("\n")
+		for line in netstat:
+			if "ESTABLISHED" not in line:
+				continue
+			if (":22" in line) or (":443" in line):
+				return True
+		return False
+
+	def _get_watchfile_age(self):
+		try:
+			stat = os.stat(self._watchfile)
+		except FileNotFoundError:
+			return None
+		return stat.st_mtime
+
+	def _reset_timer(self):
+		self._shutoff_at = time.time() + self._shutoff_after
+
+	def run(self):
+		self._shutoff_at = None
+		self._reset_timer()
+		last_watchfile_age = self._get_watchfile_age()
+		while True:
+			time.sleep(self._checktime_secs)
+			if os.path.isfile(self._inhibitfile):
+				self._reset_timer()
+				continue
+			if self._have_open_connections():
+				self._reset_timer()
+				continue
+			watchfile_age = self._get_watchfile_age()
+			if watchfile_age != last_watchfile_age:
+				last_watchfile_age = watchfile_age
+				self._reset_timer()
+				continue
+			now = time.time()
+			if now > self._shutoff_at:
+				subprocess.check_call([ "shutdown", "-h", "now" ])
+
+autoshtdn = AutoShutdown()
+autoshtdn.run()
+

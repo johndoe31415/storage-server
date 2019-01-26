@@ -1,0 +1,135 @@
+<!doctype html>
+<html>
+	<head>
+		<link rel="stylesheet" href="/static/css/pure-min.css" />
+		<link rel="stylesheet" href="/static/css/base.css" />
+		<script language="JavaScript" src="/static/js/sprintf.min.js"></script>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+	</head>
+	<body>
+		<div id="content" style="display: none">
+			<div class="header">
+				<div class="home-menu pure-menu pure-menu-horizontal pure-menu-fixed">
+					<span class="pure-menu-heading"><span id="user">/</span> @ Storage</span>
+					<span class="pure-menu-heading"><a href="https://${config['ilo']['fqdn']}:${config['ilo']['https_port']}">ILO</a></span>
+					<span class="pure-menu-heading">Uptime <span id="uptime"></span>, CPU usage <span id="cpu"></span></span>
+
+					<ul class="pure-menu-list">
+						<li class="pure-menu-item"><a href="#" class="pure-menu-link" onclick="perform_action('inhibit_toggle');">Inhibit</a></li>
+					</ul>
+				</div>
+			</div>
+
+			<!--
+			<div class="splash-container">
+				<div class="splash">
+					<h1 id="splash" class="splash-head">N/A</h1>
+					<p class="splash-subhead">
+						ILO total uptime <span id="ilo_uptime_total"></span>, storage total uptime <span id="storage_uptime_total"></span>. <span id="storage_reboots_total"></span> storage boots, <span id="storage_average_ontime"></span> average on-time, last seen at <span id="storage_lastseen"></span>.
+					</p>
+				</div>
+			</div>
+			-->
+
+			<div class="content-wrapper">
+				<div class="content">
+					<h3>IP Address</h3>
+					<pre id="raw_ip"></pre>
+				</div>
+			</div>
+		</div>
+
+		<script language="JavaScript">
+<%text>
+		function perform_action(action) {
+			if (action == "turn_off") {
+				const yes = confirm("This is dangerous and usually unnecessary. Are you sure?");
+				if (!yes) {
+					return;
+				}
+			} else if (action == "reset") {
+				const response = prompt("This is VERY dangerous and usually unnecessary. If you are absolutely sure, type 'DO IT' in the field to continue.");
+				if (response !== "DO IT") {
+					return;
+				}
+			}
+			fetch("/action/" + action);
+		}
+
+		function format_time(secs) {
+			const days = (secs / 86400) | 0;
+			const hours = (secs % 86400 / 3600) | 0;
+			const minutes = (secs % 86400 % 3600 / 60) | 0;
+			return sprintf("%dd %02d:%02d h:m", days, hours, minutes);
+		}
+
+		function format_cpu(uptime, idletime, cpucount) {
+			const idle_ratio = (idletime / cpucount) / uptime;
+			const busy_ratio = 1 - idle_ratio;
+			return sprintf("%.1f%%", 100 * busy_ratio);
+		}
+
+		function format_timet(timet) {
+			const datetime = new Date(timet * 1000);
+			return datetime.toLocaleString();
+		}
+
+		const elem_content = document.getElementById("content");
+		const elem_user= document.getElementById("user");
+		const elem_raw_ip = document.getElementById("raw_ip");
+		const elem_uptime = document.getElementById("uptime");
+		const elem_cpu = document.getElementById("cpu");
+		const elem_splash = document.getElementById("splash");
+		const elem_ilo_uptime_total = document.getElementById("ilo_uptime_total");
+		const elem_storage_uptime_total = document.getElementById("storage_uptime_total");
+		const elem_storage_reboots_total = document.getElementById("storage_reboots_total");
+		const elem_storage_average_ontime = document.getElementById("storage_average_ontime");
+		const elem_storage_lastseen = document.getElementById("storage_lastseen");
+
+		function updated_data_recvd(data) {
+			elem_content.style.display = "";
+			elem_user.innerHTML = data["user"] || "N/A";
+			elem_raw_ip.innerHTML = data["ip"]["raw"];
+			elem_uptime.innerHTML = format_time(data["uptime"]);
+			elem_cpu.innerHTML = format_cpu(data["uptime"], data["idletime"], data["cpucount"]);
+
+			if (data["storage_powered"] && data["storage_online"]) {
+				elem_splash.style.backgroundColor = "#2ecc71";
+				elem_splash.innerText = "Storage Running and Online";
+			} else if (data["storage_powered"]) {
+				elem_splash.style.backgroundColor = "#f1c40f";
+				elem_splash.innerText = "Storage Booting";
+			} else {
+				elem_splash.style.backgroundColor = "#e74c3c";
+				elem_splash.innerText = "Storage Stopped";
+			}
+
+			if (data["monitor"] != null) {
+				elem_ilo_uptime_total.innerHTML = format_time(data["monitor"]["uptime_ilo"]);
+				elem_storage_uptime_total.innerHTML = format_time(data["monitor"]["uptime_storage"]);
+				elem_storage_reboots_total.innerHTML = data["monitor"]["storage_reboots"];
+				const avg_storage_time = data["monitor"]["uptime_storage"] / data["monitor"]["storage_reboots"];
+				elem_storage_average_ontime.innerHTML = format_time(avg_storage_time);
+				if (data["monitor"]["storage_last_seen"] == null) {
+					elem_storage_lastseen.innerHTML = "never";
+				} else {
+					elem_storage_lastseen.innerHTML = format_timet(data["monitor"]["storage_last_seen"]);
+				}
+			}
+		}
+
+		function trigger_update_data() {
+			fetch("/status").then(function(response) {
+				if (response.status == 200) {
+					return response.json();
+				}
+			}).then(updated_data_recvd);
+		}
+
+		trigger_update_data();
+		setInterval(trigger_update_data, 1000);
+		</script>
+</%text>
+
+	</body>
+</html>

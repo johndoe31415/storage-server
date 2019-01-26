@@ -1,0 +1,97 @@
+#!/usr/bin/python3
+#	storage-server - Integrated remote backup solution
+#	Copyright (C) 2019-2019 Johannes Bauer
+#
+#	This file is part of storage-server.
+#
+#	storage-server is free software; you can redistribute it and/or modify
+#	it under the terms of the GNU General Public License as published by
+#	the Free Software Foundation; this program is ONLY licensed under
+#	version 3 of the License, later versions are explicitly excluded.
+#
+#	storage-server is distributed in the hope that it will be useful,
+#	but WITHOUT ANY WARRANTY; without even the implied warranty of
+#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#	GNU General Public License for more details.
+#
+#	You should have received a copy of the GNU General Public License
+#	along with storage-server; if not, write to the Free Software
+#	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#	Johannes Bauer <JohannesBauer@gmx.de>
+
+import pwd
+import sys
+import os
+import subprocess
+
+set_group = "users"
+valid_users = set([ 
+	"joe",
+])
+valid_subcommands  = set([ 
+	"/var/www/scripts/action_test.py",
+])
+
+def fail_error(msg):
+	print("Content-Type: text/plain; charset=utf-8")
+	print()
+	print("Error: %s" % (msg))
+	sys.exit(0)
+
+stat = os.stat(sys.argv[0])
+if stat.st_uid != 0:
+	fail_error("rootrunner is not owned by user root.")
+
+if stat.st_gid != 0:
+	fail_error("rootrunner is not owned by group root.")
+
+if (stat.st_mode & 0o7777) != 0o755:
+	fail_error("rootrunner does not have 755 permissions.")
+
+if len(sys.argv) < 2:
+	fail_error("No client command given.")
+
+subcommand = sys.argv[1]
+username = os.environ.get("SSL_CLIENT_S_DN_CN")
+
+if subcommand not in valid_subcommands:
+	fail_error("Not a valid subcommand.")
+
+if os.environ.get("SSL_CLIENT_S_DN_OU") != "client":
+	fail_error("Client presented not a client certificate.")
+
+if username not in valid_users:
+	fail_error("User not in whitelist.")
+
+
+if os.environ.get("SSL_CLIENT_VERIFY") != "SUCCESS":
+	fail_error("Client certificate verification failed.")
+
+prev_uid = os.getuid()
+
+try:
+	uid = pwd.getpwnam(username)
+except KeyError:
+	fail_error("User not found.")
+
+try:
+	os.setgid(uid.pw_gid)
+except PermissionError:
+	fail_error("Setting GID failed")
+
+try:
+	os.setuid(uid.pw_uid)
+except PermissionError:
+	fail_error("Setting UID failed")
+
+if prev_uid == os.getuid():
+	fail_error("Privilege dropping failed.")
+
+try:
+	os.setuid(prev_uid)
+	fail_error("Reclaiming of privilieges possible.")
+except PermissionError:
+	pass
+
+os.execl(subcommand, subcommand)
