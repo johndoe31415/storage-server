@@ -34,6 +34,10 @@ class Controller():
 		self._domain = None
 		self._lookup = None
 
+	@property
+	def config(self):
+		return self._config
+
 	def set_config(self, config, domain):
 		self._config = config
 		self._domain = domain

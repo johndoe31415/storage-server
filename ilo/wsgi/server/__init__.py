@@ -54,4 +54,5 @@ def index():
 	template = ctrlr.template("index.html")
 	return template.render(**{
 		"t":			Tools,
+		"config":		ctrlr.config,
 	})
