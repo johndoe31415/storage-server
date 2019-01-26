@@ -36,6 +36,7 @@ class Controller():
 		self._config = None
 		self._domain = None
 		self._lookup = None
+		self._last_netif = None
 
 	@property
 	def config(self):
@@ -117,9 +118,6 @@ class Controller():
 	def md_info(self):
 		with open("/proc/mdstat") as f:
 			raw_output = f.read()
-#		parsed = self._IP_ADDR_RE.search(raw_output)
-#		if parsed:
-#			parsed = parsed.groupdict()
 		return {
 			"raw":		raw_output,
 		}
@@ -133,6 +131,32 @@ class Controller():
 			"free":		stat.f_bsize * stat.f_bfree,
 		}
 		result["used"] = result["total"] - result["free"]
+		return result
+
+	@property
+	@cache_result(10)
+	def netif_info(self):
+		with open("/sys/class/net/%s/statistics/rx_bytes" % (self._config[self._domain]["interface"])) as f:
+			rx_bytes = int(f.read().strip())
+		with open("/sys/class/net/%s/statistics/tx_bytes" % (self._config[self._domain]["interface"])) as f:
+			tx_bytes = int(f.read().strip())
+
+		now = time.time()
+		if self._last_netif is None:
+			rx_speed = 0
+			tx_speed = 0
+		else:
+			tdiff = now - self._last_netif[0]
+			rx_speed = (rx_bytes - self._last_netif[1]) / tdiff
+			tx_speed = (tx_bytes - self._last_netif[2]) / tdiff
+		self._last_netif = (now, rx_bytes, tx_bytes)
+
+		result = {
+			"rx":		rx_bytes,
+			"tx":		tx_bytes,
+			"rx_speed":	rx_speed,
+			"tx_speed":	tx_speed,
+		}
 		return result
 
 	@property

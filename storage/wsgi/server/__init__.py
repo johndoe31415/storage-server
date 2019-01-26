@@ -48,6 +48,7 @@ def status():
 		"quota":			ctrlr.quota_info,
 		"user":				request.environ.get("SSL_CLIENT_S_DN_CN"),
 		"monitor":			ctrlr.monitor_info,
+		"netif":			ctrlr.netif_info,
 	}
 	return jsonify(result)
 
