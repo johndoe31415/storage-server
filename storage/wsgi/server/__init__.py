@@ -42,9 +42,10 @@ def status():
 		"uptime":			ctrlr.uptime,
 		"idletime":			ctrlr.idletime,
 		"cpucount":			ctrlr.cpucount,
-		"storage_online":	ctrlr.storage_online,
-		"storage_powered":	ctrlr.storage_powered,
 		"ip":				ctrlr.ip_info,
+		"mdstat":			ctrlr.md_info,
+		"df":				ctrlr.df_info,
+		"quota":			ctrlr.quota_info,
 		"user":				request.environ.get("SSL_CLIENT_S_DN_CN"),
 		"monitor":			ctrlr.monitor_info,
 	}

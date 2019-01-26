@@ -19,6 +19,7 @@
 #
 #	Johannes Bauer <JohannesBauer@gmx.de>
 
+import os
 import time
 import re
 import json
@@ -107,6 +108,37 @@ class Controller():
 		return {
 			"ifname":	self._config[self._domain]["interface"],
 			"parsed":	parsed,
+			"raw":		raw_output,
+		}
+
+	@property
+	@cache_result(30)
+	def md_info(self):
+		with open("/proc/mdstat") as f:
+			raw_output = f.read()
+#		parsed = self._IP_ADDR_RE.search(raw_output)
+#		if parsed:
+#			parsed = parsed.groupdict()
+		return {
+			"raw":		raw_output,
+		}
+
+	@property
+	@cache_result(30)
+	def df_info(self):
+		stat = os.statvfs(self._config["storage"]["datamnt"])
+		result = {
+			"total":	stat.f_bsize * stat.f_blocks,
+			"free":		stat.f_bsize * stat.f_bfree,
+		}
+		result["used"] = result["total"] - result["free"]
+		return result
+
+	@property
+	@cache_result(60)
+	def quota_info(self):
+		raw_output = subprocess.check_output([ "sudo", "/usr/sbin/repquota", self._config["storage"]["datamnt"] ]).decode("utf-8")
+		return {
 			"raw":		raw_output,
 		}
 
