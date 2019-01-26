@@ -1,5 +1,12 @@
+div.sizefloat {
+	color: #fff;
+	float: left;
+	overflow: hidden;
+	width: 200px;
+}
+
 .progress {
-	height: 300px;
+	height: 100px;
 }
 
 .progress > svg {

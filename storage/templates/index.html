@@ -3,7 +3,9 @@
 	<head>
 		<link rel="stylesheet" href="/static/css/pure-min.css" />
 		<link rel="stylesheet" href="/static/css/base.css" />
+		<link rel="stylesheet" href="/static/css/progress.css" />
 		<script language="JavaScript" src="/static/js/sprintf.min.js"></script>
+		<script language="JavaScript" src="/static/js/progressbar.min.js"></script>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 	</head>
 	<body>
@@ -20,21 +22,32 @@
 				</div>
 			</div>
 
-			<!--
 			<div class="splash-container">
 				<div class="splash">
-					<h1 id="splash" class="splash-head">N/A</h1>
-					<p class="splash-subhead">
-						ILO total uptime <span id="ilo_uptime_total"></span>, storage total uptime <span id="storage_uptime_total"></span>. <span id="storage_reboots_total"></span> storage boots, <span id="storage_average_ontime"></span> average on-time, last seen at <span id="storage_lastseen"></span>.
-					</p>
+					<div class="sizefloat" name="#">
+						Total<br />
+						<span class="spc_used"></span> / <span class="spc_total"></span>
+						<div class="progress"></div>
+						<span class="spc_free"></span> free
+					</div>
+					%for user in [ ]:
+					<div class="sizefloat" name="${user}">
+						${user}<br />
+						<span class="spc_used"></span> / <span class="spc_total"></span>
+						<div class="progress"></div>
+						<span class="spc_free"></span> free
+					</div>
+					%endfor
 				</div>
 			</div>
-			-->
 
 			<div class="content-wrapper">
 				<div class="content">
 					<h3>IP Address</h3>
 					<pre id="raw_ip"></pre>
+
+					<h3>MDStat</h3>
+					<pre id="raw_md"></pre>
 				</div>
 			</div>
 		</div>
@@ -74,48 +87,50 @@
 			return datetime.toLocaleString();
 		}
 
+		function format_space(bytes) {
+			if (bytes < 1e3) {
+				return sprintf("%.0f B", bytes);
+			} else if (bytes < 1e6) {
+				return sprintf("%.0f MB", bytes / 1e6);
+			} else if (bytes < 1e9) {
+				return sprintf("%.1f GB", bytes / 1e9);
+			} else {
+				return sprintf("%.2f TB", bytes / 1e12);
+			}
+		}
+
 		const elem_content = document.getElementById("content");
-		const elem_user= document.getElementById("user");
+		const elem_user = document.getElementById("user");
 		const elem_raw_ip = document.getElementById("raw_ip");
+		const elem_raw_md = document.getElementById("raw_md");
 		const elem_uptime = document.getElementById("uptime");
 		const elem_cpu = document.getElementById("cpu");
-		const elem_splash = document.getElementById("splash");
-		const elem_ilo_uptime_total = document.getElementById("ilo_uptime_total");
-		const elem_storage_uptime_total = document.getElementById("storage_uptime_total");
-		const elem_storage_reboots_total = document.getElementById("storage_reboots_total");
-		const elem_storage_average_ontime = document.getElementById("storage_average_ontime");
-		const elem_storage_lastseen = document.getElementById("storage_lastseen");
+
+		function update_sizefloat(sizefloat, data) {
+			let total, used;
+			console.log(data);
+			if (sizefloat.getAttribute("name") == "#") {
+				/* Total */
+				total = data["df"]["total"];
+				used = data["df"]["used"];
+			} else {
+				total = 1000000;
+				used = 12345;
+			}
+			sizefloat.querySelector(".spc_used").innerHTML = format_space(used);
+			sizefloat.querySelector(".spc_total").innerHTML = format_space(total);
+			sizefloat.querySelector(".spc_free").innerHTML = format_space(total - used);
+			sizefloat.querySelector(".progress").progressbar.set(used / total);
+		}
 
 		function updated_data_recvd(data) {
 			elem_content.style.display = "";
 			elem_user.innerHTML = data["user"] || "N/A";
 			elem_raw_ip.innerHTML = data["ip"]["raw"];
+			elem_raw_md.innerHTML = data["mdstat"]["raw"];
 			elem_uptime.innerHTML = format_time(data["uptime"]);
 			elem_cpu.innerHTML = format_cpu(data["uptime"], data["idletime"], data["cpucount"]);
-
-			if (data["storage_powered"] && data["storage_online"]) {
-				elem_splash.style.backgroundColor = "#2ecc71";
-				elem_splash.innerText = "Storage Running and Online";
-			} else if (data["storage_powered"]) {
-				elem_splash.style.backgroundColor = "#f1c40f";
-				elem_splash.innerText = "Storage Booting";
-			} else {
-				elem_splash.style.backgroundColor = "#e74c3c";
-				elem_splash.innerText = "Storage Stopped";
-			}
-
-			if (data["monitor"] != null) {
-				elem_ilo_uptime_total.innerHTML = format_time(data["monitor"]["uptime_ilo"]);
-				elem_storage_uptime_total.innerHTML = format_time(data["monitor"]["uptime_storage"]);
-				elem_storage_reboots_total.innerHTML = data["monitor"]["storage_reboots"];
-				const avg_storage_time = data["monitor"]["uptime_storage"] / data["monitor"]["storage_reboots"];
-				elem_storage_average_ontime.innerHTML = format_time(avg_storage_time);
-				if (data["monitor"]["storage_last_seen"] == null) {
-					elem_storage_lastseen.innerHTML = "never";
-				} else {
-					elem_storage_lastseen.innerHTML = format_timet(data["monitor"]["storage_last_seen"]);
-				}
-			}
+			document.querySelectorAll(".sizefloat").forEach(function(sizefloat) { update_sizefloat(sizefloat, data); });
 		}
 
 		function trigger_update_data() {
@@ -126,8 +141,24 @@
 			}).then(updated_data_recvd);
 		}
 
+
+		/* Construct all progressbars */
+		document.querySelectorAll(".progress").forEach(function(div) {
+			const circle = new ProgressBar.Circle(div, {
+				color: "#FCB03C",
+				duration: 500,
+				strokeWidth: 5,
+				step: function(state, circle) {
+					var value = Math.round(circle.value() * 100);
+					circle.setText(value + "% used");
+				},
+			});
+			div.progressbar = circle;
+		});
+
 		trigger_update_data();
 		setInterval(trigger_update_data, 1000);
+
 		</script>
 </%text>
 
