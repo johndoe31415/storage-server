@@ -1,0 +1,11 @@
+[Unit]
+Description=ILO/storage uptime monitor
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=${rootdir}/ilo/services/monitor_uptime ${rootdir}/config.json
+WorkingDirectory=${rootdir}
+
+[Install]
+WantedBy=multi-user.target
