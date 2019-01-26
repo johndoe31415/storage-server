@@ -1,0 +1,123 @@
+#!/usr/bin/python3
+#	storage-server - Integrated remote backup solution
+#	Copyright (C) 2019-2019 Johannes Bauer
+#
+#	This file is part of storage-server.
+#
+#	storage-server is free software; you can redistribute it and/or modify
+#	it under the terms of the GNU General Public License as published by
+#	the Free Software Foundation; this program is ONLY licensed under
+#	version 3 of the License, later versions are explicitly excluded.
+#
+#	storage-server is distributed in the hope that it will be useful,
+#	but WITHOUT ANY WARRANTY; without even the implied warranty of
+#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#	GNU General Public License for more details.
+#
+#	You should have received a copy of the GNU General Public License
+#	along with storage-server; if not, write to the Free Software
+#	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#	Johannes Bauer <JohannesBauer@gmx.de>
+
+import os
+import time
+import json
+import sys
+import subprocess
+
+if len(sys.argv) != 2:
+	print("%s [config.json]" % (sys.argv[0]))
+	sys.exit(1)
+
+config_json_filename = sys.argv[1]
+
+class AlarmClock():
+	def __init__(self, timeout):
+		self._timeout = timeout
+		self._next_trigger = time.time() + self._timeout
+
+	def __call__(self):
+		now = time.time()
+		fire = False
+		if now >= self._next_trigger:
+			self._next_trigger = now + self._timeout
+			fire = True
+		return fire
+
+class SystemMonitor():
+	def __init__(self, config_filename):
+		with open(config_json_filename) as f:
+			self._config = json.load(f)
+
+		try:
+			with open(self._config["ilo"]["files"]["monitor_file_persistent"]) as f:
+				self._monitor = json.load(f)			
+		except FileNotFoundError:
+			self._monitor = {
+				"uptime_ilo": 0,
+				"uptime_storage": 0,
+				"storage_last_seen": None,
+				"storage_reboots": 0,
+			}
+			try:
+				os.makedirs(os.path.dirname(self._config["ilo"]["files"]["monitor_file_temporary"]))
+			except FileExistsError:
+				pass
+			try:
+				os.makedirs(os.path.dirname(self._config["ilo"]["files"]["monitor_file_persistent"]))
+			except FileExistsError:
+				pass
+			self._write_monitor(self._config["ilo"]["files"]["monitor_file_temporary"])
+			self._write_monitor(self._config["ilo"]["files"]["monitor_file_persistent"])
+
+	def _write_monitor(self, filename):
+		with open(filename + "_", "w") as f:
+			json.dump(self._monitor, f)
+		os.rename(filename + "_", filename)
+
+	def _is_storage_up_raw(self):
+		try:
+			subprocess.check_call([ "fping", "-c", "1", "-t", str(self._config["timeouts"]["storage_ping_timeout_millis"]), self._config["storage"]["ip"] ], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+		except subprocess.CalledProcessError:
+			return False
+		return True
+
+	def _is_storage_up(self):
+		for i in range(5):
+			if self._is_storage_up_raw():
+				return True
+			time.sleep(1)
+		return False
+
+	def run(self):
+		last_storage_state = self._is_storage_up()
+		last_ts = time.time()
+
+		temp_persist = AlarmClock(60)
+		perm_persist = AlarmClock(900)
+
+		while True:
+			time.sleep(30)
+			(storage_state, ts) = (self._is_storage_up(), time.time())
+
+			tdiff = ts - last_ts
+			self._monitor["uptime_ilo"] += tdiff			
+			if last_storage_state:
+				self._monitor["uptime_storage"] += tdiff
+
+			if (not last_storage_state) and (storage_state):
+				self._monitor["storage_reboots"] += 1
+			
+			if storage_state:
+				self._monitor["storage_last_seen"] = ts
+
+			if temp_persist():
+				self._write_monitor(self._config["ilo"]["files"]["monitor_file_temporary"])
+			if perm_persist():
+				self._write_monitor(self._config["ilo"]["files"]["monitor_file_persistent"])			
+
+			(last_ts, last_storage_state) = (ts, storage_state)
+
+sysmon = SystemMonitor(config_json_filename)
+sysmon.run()
