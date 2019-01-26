@@ -24,7 +24,7 @@ import os
 import sys
 import json
 
-base_dir = os.path.realpath(os.path.dirname(sys.argv[0]))
+base_dir = os.path.realpath(os.path.dirname(__file__))
 config_json_filename = os.path.realpath(base_dir + "/../../config.json")
 with open(config_json_filename) as f:
 	config = json.load(f)
