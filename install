@@ -25,10 +25,10 @@ install() {
 	DST="$2"
 	PERMS="$3"
 	OWNER="$4"
-	ls "$DST"
-#	./makoset "$SRC" >"$DST"
-#	chmod "$PERMS" "$DST"
-#	chown "$OWNER" "$DST"
+	rm -f "$DST"
+	./makoset "$SRC" >"$DST"
+	chmod "$PERMS" "$DST"
+	chown "$OWNER" "$DST"
 }
 
 if [ "$1" == "ilo" ]; then
