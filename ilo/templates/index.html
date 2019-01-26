@@ -70,7 +70,7 @@
 		}
 
 		function format_timet(timet) {
-			const datetime = new Date(timet);
+			const datetime = new Date(timet * 1000);
 			return datetime.toLocaleString();
 		}
 
