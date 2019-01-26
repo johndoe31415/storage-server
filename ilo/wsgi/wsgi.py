@@ -20,7 +20,19 @@
 #
 #	Johannes Bauer <JohannesBauer@gmx.de>
 
-from server import app as application
+import os
+import sys
+import json
 
+base_dir = os.path.realpath(os.path.dirname(sys.argv[0]))
+config_json_filename = os.path.realpath(base_dir + "/../../config.json")
+with open(config_json_filename) as f:
+	config = json.load(f)
+
+from server import app, ctrlr
+app.config.update(config = config)
+ctrlr.set_config(config, "ilo")
+
+application = app
 if __name__ == "__main__":
 	application.run()

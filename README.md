@@ -8,10 +8,14 @@ There are client tools which do [restic](https://github.com/restic/restic)
 backups as well, wrapping it in a script to first wake up the storage host,
 then run the backup. All https is protected with client certificates.
 
-## Licenses
-
 ## Dependencies
 On the storage/ilo computers: fping, mako, apache2.
 
+## Third-party Software
+Included here is the following software:
+
+    * [sprintf in JavaScript](https://github.com/alexei/sprintf.js/)
+    * [Pure.CSS stylesheets and examples](https://purecss.io/)
+
 # License
-GNU GPL-3.
+storage-server is licensed under GNU GPL-3. Included third-party software under their respective licenses.

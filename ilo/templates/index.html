@@ -1,0 +1,108 @@
+<!doctype html>
+<html>
+	<head>
+		<link rel="stylesheet" href="/static/css/pure-min.css" />
+		<link rel="stylesheet" href="/static/css/base.css" />
+		<script language="JavaScript" src="/static/js/sprintf.min.js"></script>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+	</head>
+	<body>
+		<div id="content" style="display: none">
+			<div class="header">
+				<div class="home-menu pure-menu pure-menu-horizontal pure-menu-fixed">
+					<span class="pure-menu-heading"><span id="user">/</span> @ ILO</span>
+					<span class="pure-menu-heading">Uptime <span id="uptime"></span>, CPU usage <span id="cpu"></span></span>
+
+					<ul class="pure-menu-list">
+						<li class="pure-menu-item"><a href="#" class="pure-menu-link" onclick="perform_action('turn_on');">Turn on</a></li>
+						<li class="pure-menu-item"><a href="#" class="pure-menu-link" onclick="perform_action('turn_off');">Turn off</a></li>
+						<li class="pure-menu-item"><a href="#" class="pure-menu-link" onclick="perform_action('reset');">Reboot</a></li>
+					</ul>
+				</div>
+			</div>
+
+			<div class="splash-container">
+				<div class="splash">
+					<h1 id="splash" class="splash-head">N/A</h1>
+				</div>
+			</div>
+
+			<div class="content-wrapper">
+				<div class="content">
+					<h3>IP Address</h3>
+					<pre id="raw_ip"></pre>
+				</div>
+			</div>
+		</div>
+
+		<script language="JavaScript">
+<%text>
+		function perform_action(action) {
+			if (action == "turn_off") {
+				const yes = confirm("This is dangerous and usually unnecessary. Are you sure?");
+				if (!yes) {
+					return;
+				}
+			} else if (action == "reset") {
+				const response = prompt("This is VERY dangerous and usually unnecessary. If you are absolutely sure, type 'DO IT' in the field to continue.");
+				if (response !== "DO IT") {
+					return;
+				}
+			}
+			fetch("/action/" + action);
+		}
+
+		function format_time(secs) {
+			const days = (secs / 86400) | 0;
+			const hours = (secs % 86400 / 3600) | 0;
+			const minutes = (secs % 86400 % 3600 / 60) | 0;
+			return sprintf("%dd-%02d:%02d", days, hours, minutes);
+		}
+
+		function format_cpu(uptime, idletime, cpucount) {
+			const idle_ratio = (idletime / cpucount) / uptime;
+			const busy_ratio = 1 - idle_ratio;
+			return sprintf("%.1f%%", 100 * busy_ratio);
+		}
+
+		const elem_content = document.getElementById("content");
+		const elem_user= document.getElementById("user");
+		const elem_raw_ip = document.getElementById("raw_ip");
+		const elem_uptime = document.getElementById("uptime");
+		const elem_cpu = document.getElementById("cpu");
+		const elem_splash = document.getElementById("splash");
+
+		function updated_data_recvd(data) {
+			elem_content.style.display = "";
+			elem_user.innerHTML = data["user"] || "N/A";
+			elem_raw_ip.innerHTML = data["ip"]["raw"];
+			elem_uptime.innerHTML = format_time(data["uptime"]);
+			elem_cpu.innerHTML = format_cpu(data["uptime"], data["idletime"], data["cpucount"]);
+
+			if (data["storage_powered"] && data["storage_online"]) {
+				elem_splash.style.backgroundColor = "#2ecc71";
+				elem_splash.innerText = "Storage Running and Online";
+			} else if (data["storage_powered"]) {
+				elem_splash.style.backgroundColor = "#f1c40f";
+				elem_splash.innerText = "Storage Booting";
+			} else {
+				elem_splash.style.backgroundColor = "#e74c3c";
+				elem_splash.innerText = "Storage Stopped";
+			}
+		}
+
+		function trigger_update_data() {
+			fetch("/status").then(function(response) {
+				if (response.status == 200) {
+					return response.json();
+				}
+			}).then(updated_data_recvd);
+		}
+
+		trigger_update_data();
+		setInterval(trigger_update_data, 1000);
+		</script>
+</%text>
+
+	</body>
+</html>

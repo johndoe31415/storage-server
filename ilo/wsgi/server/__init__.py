@@ -19,14 +19,39 @@
 #
 #	Johannes Bauer <JohannesBauer@gmx.de>
 
-from flask import Flask
+import os
+from flask import Flask, send_from_directory, jsonify
+from .Controller import Controller
+from .Tools import Tools
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder = None)
+ctrlr = Controller(app)
 
 @app.route("/action/<action>")
 def action(action):
-	return "Action %s" % (action)
+	ctrlr.action(action)
+	return "OK"
+
+@app.route("/static/<path:path>")
+def xstatic(path):
+	return send_from_directory(ctrlr.staticdir, path)
+
+@app.route("/status")
+def status():
+	result = {
+		"uptime":			ctrlr.uptime,
+		"idletime":			ctrlr.idletime,
+		"cpucount":			ctrlr.cpucount,
+		"storage_online":	ctrlr.storage_online,
+		"storage_powered":	ctrlr.storage_powered,
+		"ip":				ctrlr.ip_info,
+		"user":				os.environ.get("SSL_CLIENT_S_DN_CN"),
+	}
+	return jsonify(result)
 
 @app.route("/")
 def index():
-	return "Foobar"
+	template = ctrlr.template("index.html")
+	return template.render(**{
+		"t":			Tools,
+	})
