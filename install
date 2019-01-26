@@ -32,10 +32,13 @@ install() {
 }
 
 if [ "$1" == "ilo" ]; then
+	chmod 644 config.json
 	chmod 755 .
 	chmod 755 ilo
 	chmod 755 ilo/wsgi
 	chown -R www-data:www-data ilo/wsgi
+	chown -R www-data:www-data ilo/templates
+	chown -R www-data:www-data ilo/docroot
 
 	install "ilo/conf/apache2/ports.conf" "/etc/apache2/ports.conf" 644 root:root
 	install "ilo/conf/apache2/conf-enabled/security.conf" "/etc/apache2/conf-enabled/security.conf" 644 root:root
