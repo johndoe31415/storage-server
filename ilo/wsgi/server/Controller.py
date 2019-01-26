@@ -109,6 +109,16 @@ class Controller():
 			"raw":		raw_output,
 		}
 
+	@property
+	@cache_result(30)
+	def monitor_info(self):
+		try:
+			with open(self._config["ilo"]["files"]["monitor_file_temporary"]) as f:
+				info = json.load(f)
+		except FileNotFoundError, json.JSONDecodeError:
+			info = None
+		return info
+
 	def _press_button(self, filename, presstime):
 		with open(filename, "w") as f:
 			print("1", file = f)

@@ -46,6 +46,7 @@ def status():
 		"storage_powered":	ctrlr.storage_powered,
 		"ip":				ctrlr.ip_info,
 		"user":				request.environ.get("SSL_CLIENT_S_DN_CN"),
+		"monitor":			ctrlr.monitor_info,
 	}
 	return jsonify(result)
 
