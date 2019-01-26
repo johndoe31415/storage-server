@@ -4,6 +4,9 @@
 		"fqdn":		"ilo.dyn.example.com",
 		"files": {
 			"monitor_file": "/storage/info/monitor.json"
+		},
+		"misc": {
+			"storage_ping_timeout_millis":		100
 		}
 	},
 	"storage": {
@@ -11,7 +14,7 @@
 		"fqdn":		"ilo.dyn.example.com"
 	},
 	"users": [ "rick", "morty" ],
-	"config": {
-		"storage_ping_timeout_millis":		100
+	"pki": {
+		"validity_years":	20
 	}
 }

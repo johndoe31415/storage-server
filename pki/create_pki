@@ -1,0 +1,51 @@
+#!/usr/bin/python3
+#	storage-server - Integrated remote backup solution
+#	Copyright (C) 2019-2019 Johannes Bauer
+#
+#	This file is part of storage-server.
+#
+#	storage-server is free software; you can redistribute it and/or modify
+#	it under the terms of the GNU General Public License as published by
+#	the Free Software Foundation; this program is ONLY licensed under
+#	version 3 of the License, later versions are explicitly excluded.
+#
+#	storage-server is distributed in the hope that it will be useful,
+#	but WITHOUT ANY WARRANTY; without even the implied warranty of
+#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#	GNU General Public License for more details.
+#
+#	You should have received a copy of the GNU General Public License
+#	along with storage-server; if not, write to the Free Software
+#	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#	Johannes Bauer <JohannesBauer@gmx.de>
+
+import os
+import json
+import subprocess
+
+with open("../config.json") as f:
+	config = json.load(f)
+
+# Create the CA
+valid_days = config["pki"]["validity_years"] * 365
+subprocess.check_call([ "x509sak.py", "createca", "-d", str(valid_days), "-s", "/CN=Storage Root CA", "ca" ])
+
+os.makedirs("server")
+os.makedirs("client")
+# Create the server certificates
+for fqdn in [ config["ilo"]["fqdn"], config["storage"]["fqdn"] ]:
+	subprocess.check_call([ "x509sak.py", "createcrt", "-d", str(valid_days), "-h", "sha384", "-t", "tls-server", "-s" "/CN=%s/OU=server" % (fqdn), "-c", "ca", "--san-dns", fqdn, "server/%s.key" % (fqdn), "server/%s.crt" % (fqdn) ])
+
+# Create client certificates and bundle them as PKCS#12
+for client in config["users"]:
+	subprocess.check_call([ "x509sak.py", "createcrt", "-d", str(valid_days), "-h", "sha384", "-t", "tls-client", "-s", "/CN=%s/OU=client" % (client), "-c", "ca", "-t", "tls-client", "client/%s.key" % (client), "client/%s.crt" % (client) ])
+	subprocess.check_call([ "x509sak.py", "bc", "-s", "ca/", "--outform", "pkcs12", "--private-key", "client/%s.key" % (client), "--pkcs12-no-passphrase", "-o", "client/%s.p12" % (client), "client/%s.crt" % (client) ])
+
+# Bundle the client certificates as encrytped 7zip
+for client in config["users"]:
+	passphrase = subprocess.check_output([ "sanepass" ]).decode().strip()
+
+	with open("client/passwords.txt", "a") as f:
+		print("%s %s" % (client, passphrase), file = f)
+	subprocess.check_call([ "7z", "a", "-p%s" % (passphrase), "client/%s.7z" % (client), "client/%s.p12" % (client), "ca/CA.crt" ], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
