@@ -115,7 +115,7 @@ class Controller():
 		try:
 			with open(self._config["ilo"]["files"]["monitor_file_temporary"]) as f:
 				info = json.load(f)
-		except FileNotFoundError, json.JSONDecodeError:
+		except (FileNotFoundError, json.JSONDecodeError):
 			info = None
 		return info
 
