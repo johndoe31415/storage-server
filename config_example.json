@@ -1,0 +1,17 @@
+{
+	"ilo": {
+		"ip":		"192.168.1.10",
+		"fqdn":		"ilo.dyn.example.com",
+		"files": {
+			"monitor_file": "/storage/info/monitor.json"
+		}
+	},
+	"storage": {
+		"ip":		"192.168.1.20",
+		"fqdn":		"ilo.dyn.example.com"
+	},
+	"users": [ "rick", "morty" ],
+	"config": {
+		"storage_ping_timeout_millis":		100
+	}
+}
