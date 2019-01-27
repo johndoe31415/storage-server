@@ -187,13 +187,12 @@ class Controller():
 			"raw":		raw_output,
 		}
 
-	@cache_result(86400)
-	def smartmon_info(self, disk):
+	def _smartmon_info(self, disk):
 		try:
 			json_output = subprocess.check_output([ "sudo", "-S", "/usr/local/sbin/smartctl", "-a", "--json", disk ])
 		except subprocess.CalledProcessError:
 			return None
-		return json.loads(json_output)
+		return json.loads(json_output.decode("utf-8"))
 
 	@property
 	@cache_result(86400)
@@ -205,16 +204,20 @@ class Controller():
 				"extname":	disk["extname"],
 				"dev":		os.path.realpath(disk["dev"]),
 			}
-			smart_info = self.smartmon_info(disk["dev"])
-			smart_info_per_name = { attribute["name"]: attribute for attribute in smart_info["ata_smart_attributes"]["table"] }
-			disk_info["smart"] = [ ]
-			for expose in [ "Start_Stop_Count", "Reallocated_Sector_Ct", "Power_On_Hours", "Power_Cycle_Count", "Temperature_Celsius", "Total_LBAs_Written", "Total_LBAs_Read" ]:
-				disk_info["smart"].append({
-					"name":		expose,
-					"value":	smart_info_per_name.get(expose, { "raw": { } })["raw"].get("string"),
+			smart_info = self._smartmon_info(disk["dev"])
+			if smart_info is not None:
+				disk_info.update({
 					"model":	smart_info["model_name"],
 					"serial":	smart_info["serial_number"],
 				})
+				smart_info_per_name = { attribute["name"]: attribute for attribute in smart_info["ata_smart_attributes"]["table"] }
+				disk_info["smart"] = [ ]
+				for expose in [ "Reallocated_Sector_Ct", "Power_On_Hours", "Power_Cycle_Count", "Temperature_Celsius", "Total_LBAs_Written", "Total_LBAs_Read" ]:
+					disk_info["smart"].append({
+						"name":		expose,
+						"value":	smart_info_per_name.get(expose, { "raw": { } })["raw"].get("string"),
+					})
+			disks_info.append(disk_info)
 		return disks_info
 
 	@property
