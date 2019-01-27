@@ -14,9 +14,9 @@ On the storage/ilo computers: fping, mako, apache2.
 ## Third-party Software
 Included here is the following software:
 
-    * [sprintf in JavaScript](https://github.com/alexei/sprintf.js/)
-    * [Pure.CSS stylesheets and examples](https://purecss.io/)
-	* Progressbar.JS (TODO link)
+  * [sprintf in JavaScript](https://github.com/alexei/sprintf.js/)
+  * [Pure.CSS stylesheets and examples](https://purecss.io/)
+  * [Progressbar.JS](https://github.com/kimmobrunfeldt/progressbar.js)
 
 # License
 storage-server is licensed under GNU GPL-3. Included third-party software under their respective licenses.
