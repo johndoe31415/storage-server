@@ -49,6 +49,7 @@ def status():
 		"user":				request.environ.get("SSL_CLIENT_S_DN_CN"),
 		"monitor":			ctrlr.monitor_info,
 		"netif":			ctrlr.netif_info,
+		"disks":			ctrlr.disk_info,
 	}
 	return jsonify(result)
 

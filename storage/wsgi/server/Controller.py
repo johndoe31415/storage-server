@@ -187,6 +187,36 @@ class Controller():
 			"raw":		raw_output,
 		}
 
+	@cache_result(86400)
+	def smartmon_info(self, disk):
+		try:
+			json_output = subprocess.check_output([ "sudo", "-S", "/usr/local/sbin/smartctl", "-a", "--json", disk ])
+		except subprocess.CalledProcessError:
+			return None
+		return json.loads(json_output)
+
+	@property
+	@cache_result(86400)
+	def disk_info(self):
+		disks_info = [ ]
+		for disk in self._config[self._domain]["disks"]:
+			disk_info = {
+				"name":		disk["name"],
+				"extname":	disk["extname"],
+				"dev":		os.path.realpath(disk["dev"]),
+			}
+			smart_info = self.smartmon_info(disk["dev"])
+			smart_info_per_name = { attribute["name"]: attribute for attribute in smart_info["ata_smart_attributes"]["table"] }
+			disk_info["smart"] = [ ]
+			for expose in [ "Start_Stop_Count", "Reallocated_Sector_Ct", "Power_On_Hours", "Power_Cycle_Count", "Temperature_Celsius", "Total_LBAs_Written", "Total_LBAs_Read" ]:
+				disk_info["smart"].append({
+					"name":		expose,
+					"value":	smart_info_per_name.get(expose, { "raw": { } })["raw"].get("string"),
+					"model":	smart_info["model_name"],
+					"serial":	smart_info["serial_number"],
+				})
+		return disks_info
+
 	@property
 	@cache_result(30)
 	def monitor_info(self):
