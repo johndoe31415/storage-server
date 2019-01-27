@@ -125,11 +125,16 @@
 				const tbody = elem_smart_table.createTBody()
 				for (const property_id in data["disks"][0]["smart"]) {
 					let next_row = tbody.insertRow(-1);
-					next_row.insertCell(-1).innerHTML = data["disks"][0]["smart"][property_id]["name"];
+					const propname = data["disks"][0]["smart"][property_id]["name"]
+					next_row.insertCell(-1).innerHTML = propname;
 
 					for (const disk of data["disks"]) {
 						const cell = next_row.insertCell(-1);
-						cell.innerHTML = disk["smart"][property_id]["value"];
+						let cellvalue = disk["smart"][property_id]["value"];
+						if ((propname == "Written") || (propname == "Read")) {
+							cellvalue = format_space(cellvalue);
+						}
+						cell.innerHTML = cellvalue;
 						if (disk["smart"][property_id]["warn"]) {
 							cell.classList.add("warn");
 						}
