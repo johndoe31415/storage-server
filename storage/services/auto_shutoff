@@ -38,7 +38,7 @@ class AutoShutdown():
 		for line in netstat:
 			if "ESTABLISHED" not in line:
 				continue
-			if (":22" in line) or (":443" in line):
+			if (":22" in line):
 				return True
 		return False
 
