@@ -4,6 +4,7 @@
 		<link rel="stylesheet" href="/static/css/pure-min.css" />
 		<link rel="stylesheet" href="/static/css/base.css" />
 		<link rel="stylesheet" href="/static/css/progress.css" />
+		<link rel="stylesheet" href="/static/css/tooltip.css" />
 		<script language="JavaScript" src="/static/js/sprintf.min.js"></script>
 		<script language="JavaScript" src="/static/js/progressbar.min.js"></script>
 		<script language="JavaScript" src="/static/js/helpers.js"></script>
@@ -120,7 +121,8 @@
 				const head_row = elem_smart_table.tHead.insertRow(-1);
 				head_row.insertCell(-1);
 				for (const disk of data["disks"]) {
-					head_row.insertCell(-1).innerHTML = disk["name"];
+					const head_cell = head_row.insertCell(-1);
+					head_cell.innerHTML = "<div class=\"tooltip\">" + disk["name"] + "<span class=\"tooltiptext\">" + disk["model"] + "<br />" + disk["serial"] + "</span></div>";
 				}
 				const tbody = elem_smart_table.createTBody()
 				for (const property_id in data["disks"][0]["smart"]) {
