@@ -59,3 +59,11 @@ def index():
 		"t":			Tools,
 		"config":		ctrlr.config,
 	})
+
+@app.route("/test")
+def test():
+	template = ctrlr.template("test.html")
+	return template.render(**{
+		"t":			Tools,
+		"config":		ctrlr.config,
+	})

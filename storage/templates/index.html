@@ -121,12 +121,24 @@
 		/* Construct all progressbars */
 		document.querySelectorAll(".progress").forEach(function(div) {
 			const circle = new ProgressBar.Circle(div, {
-				color: "#FCB03C",
-				duration: 500,
-				strokeWidth: 5,
+				color: "#fff",
+				trailColor: "#bbb",
+				strokeWidth: 8,
+				trailWidth: 2,
 				step: function(state, circle) {
-					var value = Math.round(circle.value() * 100);
+
+					const value = Math.round(circle.value() * 100);
 					circle.setText(value + "% used");
+					if (value < 66) {
+						/* Green */
+						circle.path.setAttribute("stroke", "#2ecc71");
+					} else if (value < 82) {
+						/* Yellow */
+						circle.path.setAttribute("stroke", "#f1c40f");
+					} else {
+						/* Red */
+						circle.path.setAttribute("stroke", "#e74c3c");
+					}
 				},
 			});
 			div.progressbar = circle;

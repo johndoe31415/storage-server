@@ -125,12 +125,15 @@ class Controller():
 	@property
 	@cache_result(30)
 	def df_info(self):
-		stat = os.statvfs(self._config["storage"]["datamnt"])
-		result = {
-			"total":	stat.f_bsize * stat.f_blocks,
-			"free":		stat.f_bsize * stat.f_bfree,
-		}
-		result["used"] = result["total"] - result["free"]
+		try:
+			stat = os.statvfs(self._config["storage"]["datamnt"])
+			result = {
+				"total":	stat.f_bsize * stat.f_blocks,
+				"free":		stat.f_bsize * stat.f_bfree,
+			}
+			result["used"] = result["total"] - result["free"]
+		except FileNotFoundError:
+			result = None
 		return result
 
 	@property
@@ -162,7 +165,10 @@ class Controller():
 	@property
 	@cache_result(60)
 	def quota_info(self):
-		raw_output = subprocess.check_output([ "sudo", "/usr/sbin/repquota", self._config["storage"]["datamnt"] ]).decode("utf-8")
+		try:
+			raw_output = subprocess.check_output([ "sudo", "-S", "/usr/sbin/repquota", self._config["storage"]["datamnt"] ], input = b"").decode("utf-8")
+		except subprocess.CalledProcessError:
+			return None
 		quotas = { }
 		search = False
 		for line in raw_output.split("\n"):

@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+	<head>
+		<link rel="stylesheet" href="/static/css/pure-min.css" />
+		<link rel="stylesheet" href="/static/css/base.css" />
+		<link rel="stylesheet" href="/static/css/progress.css" />
+		<script language="JavaScript" src="/static/js/sprintf.min.js"></script>
+		<script language="JavaScript" src="/static/js/progressbar.min.js"></script>
+		<script language="JavaScript" src="/static/js/helpers.js"></script>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+	</head>
+	<body>
+		<div id="content">
+			<div class="header">
+				<div class="home-menu pure-menu pure-menu-horizontal pure-menu-fixed">
+					<span class="pure-menu-heading"><span id="user">/</span> @ Storage</span>
+					<span class="pure-menu-heading"><a href="https://${config['ilo']['fqdn']}:${config['ilo']['https_port']}">ILO</a></span>
+					<span class="pure-menu-heading">Uptime <span id="uptime"></span>, CPU usage <span id="cpu"></span></span>
+					<span class="pure-menu-heading">⬆ <span id="tx"></span> ⬇ <span id="rx"></span></span>
+
+					<ul class="pure-menu-list">
+						<li class="pure-menu-item"><a href="#" class="pure-menu-link" onclick="perform_action('inhibit_toggle');">Inhibit</a></li>
+					</ul>
+				</div>
+			</div>
+
+			<div class="splash-container">
+				<div class="splash">
+					<div class="sizefloat" name="#">
+						Total<br />
+						<span class="spc_used"></span> / <span class="spc_total"></span>
+						<div class="progress"></div>
+						<span class="spc_free"></span> free
+					</div>
+				</div>
+			</div>
+
+			<div class="content-wrapper">
+				<div class="content">
+					<h3>IP Address</h3>
+					<pre id="raw_ip"></pre>
+
+					<h3>MDStat</h3>
+					<pre id="raw_md"></pre>
+				</div>
+			</div>
+		</div>
+
+		<script language="JavaScript">
+<%text>
+
+		/* Construct all progressbars */
+		document.querySelectorAll(".progress").forEach(function(div) {
+			const circle = new ProgressBar.Circle(div, {
+				color: "#fff",
+				trailColor: "#bbb",
+				strokeWidth: 8,
+				trailWidth: 2,
+				step: function(state, circle) {
+
+					const value = Math.round(circle.value() * 100);
+					circle.setText(value + "% used");
+					if (value < 66) {
+						/* Green */
+						circle.path.setAttribute("stroke", "#2ecc71");
+					} else if (value < 82) {
+						/* Yellow */
+						circle.path.setAttribute("stroke", "#f1c40f");
+					} else {
+						/* Red */
+						circle.path.setAttribute("stroke", "#e74c3c");
+					}
+				},
+			});
+			div.progressbar = circle;
+			circle.set(0.9);
+		});
+		</script>
+</%text>
+
+	</body>
+</html>
