@@ -125,3 +125,23 @@ body {
 	border: none;
 }
 
+table.xy_data td {
+	padding: 3px;
+	border-bottom: 1px #aaa solid;
+}
+
+table.xy_data thead td {
+	border-bottom: 1px #aaa solid;
+	margin-bottom: 5px;
+	font-weight: bold;
+}
+
+table.xy_data tbody tr td:nth-child(1) {
+	margin-right: 5px;
+	font-weight: bold;
+}
+
+table.xy_data td.warn {
+	background-color: #e74c3c;
+	color: #fff;
+}

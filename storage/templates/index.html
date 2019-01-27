@@ -49,7 +49,9 @@
 					<pre id="raw_md"></pre>
 
 					<h3>SMART</h3>
-					<table>
+					<table id="smart_table" class="xy_data">
+						<thead />
+						<tbody />
 					</table>
 
 					<h3>Network</h3>
@@ -83,6 +85,7 @@
 		const elem_cpu = document.getElementById("cpu");
 		const elem_tx = document.getElementById("tx");
 		const elem_rx = document.getElementById("rx");
+		const elem_smart_table = document.getElementById("smart_table");
 
 		function update_sizefloat(sizefloat, data) {
 			let total, used;
@@ -111,6 +114,28 @@
 			document.querySelectorAll(".sizefloat").forEach(function(sizefloat) { update_sizefloat(sizefloat, data); });
 			elem_tx.innerHTML = format_space(data["netif"]["tx_speed"]) + "/s";
 			elem_rx.innerHTML = format_space(data["netif"]["rx_speed"]) + "/s";
+
+			if (elem_smart_table.rows.length == 0) {
+				/* Construct the empty table */
+				const head_row = elem_smart_table.tHead.insertRow(-1);
+				head_row.insertCell(-1);
+				for (const disk of data["disks"]) {
+					head_row.insertCell(-1).innerHTML = disk["name"];
+				}
+				const tbody = elem_smart_table.createTBody()
+				for (const property_id in data["disks"][0]["smart"]) {
+					let next_row = tbody.insertRow(-1);
+					next_row.insertCell(-1).innerHTML = data["disks"][0]["smart"][property_id]["name"];
+
+					for (const disk of data["disks"]) {
+						const cell = next_row.insertCell(-1);
+						cell.innerHTML = disk["smart"][property_id]["value"];
+						if (disk["smart"][property_id]["warn"]) {
+							cell.classList.add("warn");
+						}
+					}
+				}
+			}
 		}
 
 		function trigger_update_data() {

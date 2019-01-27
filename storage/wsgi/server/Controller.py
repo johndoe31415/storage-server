@@ -189,7 +189,7 @@ class Controller():
 
 	def _smartmon_info(self, disk):
 		try:
-			json_output = subprocess.check_output([ "sudo", "-S", "/usr/local/sbin/smartctl", "-a", "--json", disk ])
+			json_output = subprocess.check_output([ "sudo", "-S", "/usr/local/sbin/smartctl", "-a", "--json", disk ], input = b"")
 		except subprocess.CalledProcessError:
 			return None
 		return json.loads(json_output.decode("utf-8"))
@@ -212,10 +212,42 @@ class Controller():
 				})
 				smart_info_per_name = { attribute["name"]: attribute for attribute in smart_info["ata_smart_attributes"]["table"] }
 				disk_info["smart"] = [ ]
-				for expose in [ "Reallocated_Sector_Ct", "Power_On_Hours", "Power_Cycle_Count", "Temperature_Celsius", "Total_LBAs_Written", "Total_LBAs_Read" ]:
+
+				discard_when_empty = set([ "Total_LBAs_Written", "Total_Host_GB_Written", "Total_LBAs_Read", "Total_Host_GB_Read" ])
+				for expose in [ "Reallocated_Sector_Ct", "Power_On_Hours", "Power_Cycle_Count", "Temperature_Celsius", "Total_LBAs_Written", "Total_Host_GB_Written", "Total_LBAs_Read", "Total_Host_GB_Read" ]:
+					value = smart_info_per_name.get(expose, { "raw": { } })["raw"].get("string")
+					warn = False
+					show_name = expose
+					if value is None and (expose in discard_when_empty):
+						continue
+
+					if expose == "Reallocated_Sector_Ct":
+						show_name = "Realloced"
+						warn = int(value) != 0
+					elif expose == "Power_On_Hours":
+						show_name = "Hours"
+						value = value.split()[0]
+					elif expose == "Temperature_Celsius":
+						show_name = "Temp °C"
+						value = value.split()[0]
+						warn = int(value) >= 50
+					elif expose == "Total_LBAs_Written":
+						show_name = "Written"
+						value = int(value) * 512
+					elif expose == "Total_LBAs_Read":
+						show_name = "Read"
+						value = int(value) * 512
+					elif expose == "Total_Host_GB_Written":
+						show_name = "Written"
+						value = int(value) * 1024 * 1024 * 1024
+					elif expose == "Total_Host_GB_Read":
+						show_name = "Read"
+						value = int(value) * 1024 * 1024 * 1024
+
 					disk_info["smart"].append({
-						"name":		expose,
-						"value":	smart_info_per_name.get(expose, { "raw": { } })["raw"].get("string"),
+						"name":		show_name,
+						"value":	value,
+						"warn":		warn,
 					})
 			disks_info.append(disk_info)
 		return disks_info

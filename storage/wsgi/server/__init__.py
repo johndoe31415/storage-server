@@ -20,6 +20,7 @@
 #	Johannes Bauer <JohannesBauer@gmx.de>
 
 import os
+import json
 from flask import Flask, send_from_directory, jsonify, request
 from .Controller import Controller
 from .Tools import Tools
@@ -38,19 +39,23 @@ def xstatic(path):
 
 @app.route("/status")
 def status():
-	result = {
-		"uptime":			ctrlr.uptime,
-		"idletime":			ctrlr.idletime,
-		"cpucount":			ctrlr.cpucount,
-		"ip":				ctrlr.ip_info,
-		"mdstat":			ctrlr.md_info,
-		"df":				ctrlr.df_info,
-		"quota":			ctrlr.quota_info,
-		"user":				request.environ.get("SSL_CLIENT_S_DN_CN"),
-		"monitor":			ctrlr.monitor_info,
-		"netif":			ctrlr.netif_info,
-		"disks":			ctrlr.disk_info,
-	}
+	if os.path.isfile("/tmp/mock.json"):
+		with open("/tmp/mock.json") as f:
+			result = json.load(f)
+	else:
+		result = {
+			"uptime":			ctrlr.uptime,
+			"idletime":			ctrlr.idletime,
+			"cpucount":			ctrlr.cpucount,
+			"ip":				ctrlr.ip_info,
+			"mdstat":			ctrlr.md_info,
+			"df":				ctrlr.df_info,
+			"quota":			ctrlr.quota_info,
+			"user":				request.environ.get("SSL_CLIENT_S_DN_CN"),
+			"monitor":			ctrlr.monitor_info,
+			"netif":			ctrlr.netif_info,
+			"disks":			ctrlr.disk_info,
+		}
 	return jsonify(result)
 
 @app.route("/")
