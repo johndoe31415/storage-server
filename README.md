@@ -32,6 +32,8 @@ To setup the backup client on a new host, do the following:
     Host storage.dyn.example.com
         IdentityFile ~/.ssh/backup_id_ed25519
     ```
+  * Also ensure that as your regular user you have access to the storage as
+    well (whitelist that key additionally).
   * Check the sftp connection to the storage server works.
   * As user, run the client/storage_backup script once with the dryrun option:
     ```
