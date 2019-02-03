@@ -18,5 +18,37 @@ Included here is the following software:
   * [Pure.CSS stylesheets and examples](https://purecss.io/)
   * [Progressbar.JS](https://github.com/kimmobrunfeldt/progressbar.js)
 
+## Setting up the backup client
+To setup the backup client on a new host, do the following:
+
+  * As root, create a new private/public ssh keypair. For example:
+    ```
+    # ssh-keygen -t ed25519 -f ~/.ssh/backup_id_ed25519
+    ```
+  * Make sure that connections to the storage server use this keypair by
+    default:
+    ```
+    # cat >>~/.ssh/config
+    Host storage.dyn.example.com
+        IdentityFile ~/.ssh/backup_id_ed25519
+    ```
+  * Check the sftp connection to the storage server works.
+  * As user, run the client/storage_backup script once with the dryrun option:
+    ```
+    $ client/storage_backup -d
+    ```
+    It will create a default configuration file (typically
+    ~/.config/jbin/backup/storage_backup.json).
+  * Edit the configuration file and adapt to your needs. Set hostnames/ports
+    and remove the "REMOVE_BEFORE_USAGE" key.
+  * Initialize a restic repository on the remote:
+    ``` 
+    $ restic init -r sftp://joe@storage.dyn.example.com//data/joe/restic
+    ``` 
+    Make sure that restic repository is accessible with the key you configured
+    (typically /etc/restic.txt).
+  * Run the script without the dryrun option and see if everything works as
+    expected.
+
 # License
 storage-server is licensed under GNU GPL-3. Included third-party software under their respective licenses.

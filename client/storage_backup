@@ -99,11 +99,11 @@ if args.dryrun:
 
 # Wake up machine.
 if args.verbose:
-	print("Waking up storage server...", file = sys.stderr)
+	print("Waking up storage server: %s" % (config["wakeup_uri"]), file = sys.stderr)
 subprocess.check_call([ "curl", "--cacert", config["CA_filename"], "--tlsv1.2", "--cert-type", "P12", "--cert", config["client_cert_p12"], config["wakeup_uri"] ], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
 
 if args.verbose:
-	print("Waiting for storage server to become available...", file = sys.stderr)
+	print("Waiting for storage server to become available: sftp %s@%s:%d" % (config["username"], config["storage_fqdn"], config["storage_port"]), file = sys.stderr)
 timeout = time.time() + config["max_wait_secs"]
 host_up = False
 while time.time() < timeout:
