@@ -25,11 +25,18 @@ import os
 import json
 import time
 import subprocess
+from FriendlyArgumentParser import FriendlyArgumentParser
 
-config_filename = os.path.realpath(os.path.expanduser("~/.config/jbin/backup/storage_backup.json"))
-if not os.path.isfile(config_filename):
+default_config_filename = os.path.realpath(os.path.expanduser("~/.config/jbin/backup/storage_backup.json"))
+parser = FriendlyArgumentParser()
+parser.add_argument("-c", "--config", metavar = "filename", type = str, default = default_config_filename, help = "Specifies configuration file. Defaults to %(default)s.")
+parser.add_argument("-d", "--dryrun", action = "store_true", help = "Do not actually trigger backup, just show the sudoders commandline that would be executed.")
+parser.add_argument("-v", "--verbose", action = "store_true", help = "Be more verbose about what is happening.")
+args = parser.parse_args(sys.argv[1:])
+
+if not os.path.isfile(args.config):
 	try:
-		os.makedirs(os.path.dirname(config_filename))
+		os.makedirs(os.path.dirname(args.config))
 	except FileExistsError:
 		pass
 	default_config = {
@@ -37,24 +44,24 @@ if not os.path.isfile(config_filename):
 		"storage_fqdn":				"storage.dyn.example.com",
 		"storage_port":				22,
 		"wakeup_uri":				"https://ilo.dyn.example.com:8443/action/turn_on",
-		"username":					os.environ.get("USER", "joe"),
+		"username":					os.environ.get("USER", "user"),
 		"remote_path":				"restic/",
 		"passphrase_file":			"/etc/restic_key.txt",
 		"CA_filename":				"~/.config/jbin/backup/CA.crt",
 		"client_cert_p12":			"~/.config/jbin/backup/client.p12",
 		"max_wait_secs":			60,	
-		"restic_bin":				"/usr/bin/restic",
+		"restic_bin":				"/usr/local/bin/restic" if os.path.isfile("/usr/local/bin/restic") else "/usr/bin/restic",
 		"excludes":					[ "/proc", "/sys", "/dev", "/var/cache/apt/archives", "/run/user", "/tmp" ],
 		"backup_path":				"/",
 	}
-	with open(config_filename, "w") as f:
+	with open(args.config, "w") as f:
 		json.dump(default_config, f, sort_keys = True, indent = 4)
 
-with open(config_filename, "r") as f:
+with open(args.config, "r") as f:
 	config = json.load(f)
 
 if "REMOVE_BEFORE_USAGE" in config:
-	print("System is unconfigured. Edit config file: %s" % (config_filename))
+	print("System is unconfigured. Edit config file: %s" % (args.config))
 	print("Remember to remove the 'REMOVE_BEFORE_USAGE' key.")
 	sys.exit(1)
 
@@ -73,33 +80,57 @@ if not os.path.isfile(config["passphrase_file"]):
 	print("Suggested passphrase: %s" % (os.urandom(32).hex()))
 	sys.exit(1)
 
-# Wake up machine.
-subprocess.check_call([ "curl", "--cacert", config["CA_filename"], "--tlsv1.2", "--cert-type", "P12", "--cert", config["client_cert_p12"], config["wakeup_uri"] ])
-
-timeout = time.time() + config["max_wait_secs"]
-host_up = False
-while time.time() < timeout:
-	try:
-		subprocess.check_output([ "sftp", "-P", str(config["storage_port"]), "%s@%s" % (config["username"], config["storage_fqdn"]) ], input = b"ls /\n", stderr = subprocess.DEVNULL)
-		# Host is up!
-		host_up = True
-		break
-	except subprocess.CalledProcessError:
-		# Not up yet. Try again.
-		time.sleep(3)
-
-if not host_up:
-	print("Could not wake %s after %d seconds." % (config["storage_fqdn"], config["max_wait_secs"]))
-	sys.exit(1)
-
+# This is the command we would want to execute
 cmdline = [ config["restic_bin"], "backup", "-p", config["passphrase_file"], "-r", "sftp://%s@%s:%d/%s" % (config["username"], config["storage_fqdn"], config["storage_port"], config["remote_path"]) ]
 for exclude in config["excludes"]:
 	cmdline += [ "--exclude", exclude ]
 cmdline += config["backup_path"]
 
-cmdline_str = " ".join(cmdline)
-sudoers_line = "%s ALL=NOPASSWD: %s" % (os.environ.get("USER", "???"), cmdline_str.replace(":", r"\:"))
-print(sudoers_line)
+if args.dryrun:
+	cmdline_str = " ".join(cmdline)
+	sudoers_line = "%s ALL=NOPASSWD: %s" % (os.environ.get("USER", "user"), cmdline_str.replace(":", r"\:"))
+	print("Want to execute the following as root:")
+	print("   sudo -u root %s" % (cmdline_str))
+	print()
+	print("Make sure your sudoers file contains:")
+	print("    %s" % (sudoers_line))
+	sys.exit(0)
+
+
+# Wake up machine.
+if args.verbose:
+	print("Waking up storage server...", file = sys.stderr)
+subprocess.check_call([ "curl", "--cacert", config["CA_filename"], "--tlsv1.2", "--cert-type", "P12", "--cert", config["client_cert_p12"], config["wakeup_uri"] ], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+
+if args.verbose:
+	print("Waiting for storage server to become available...", file = sys.stderr)
+timeout = time.time() + config["max_wait_secs"]
+host_up = False
+while time.time() < timeout:
+	try:
+		if args.verbose:
+			print("Checking for sftp availability...", file = sys.stderr)
+		output = subprocess.check_output([ "sftp", "-P", str(config["storage_port"]), "%s@%s" % (config["username"], config["storage_fqdn"]) ], input = ("ls '%s'\n" % (config["remote_path"])).encode("utf-8"), stderr = subprocess.DEVNULL)
+		output = output.decode("utf-8").split("\n")
+		for line in output:
+			if line.startswith("Can't ls"):
+				if args.verbose:
+					print("Could connect to sftp, but remote directory '%s' wasn't available." % (config["remote_path"]), file = sys.stderr)
+				break
+		else:
+			# ls worked, host is up!
+			host_up = True
+		break
+	except subprocess.CalledProcessError:
+		# Not up yet. Try again.
+		if args.verbose:
+			print("Could not connect to sftp. Storage probably not up yet.", file = sys.stderr)
+		time.sleep(3)
+
+if not host_up:
+	print("Could not wake %s after %d seconds." % (config["storage_fqdn"], config["max_wait_secs"]), file = sys.stderr)
+	sys.exit(1)
+
 
 sudo_cmd = [ "sudo", "-u", "root" ] + cmdline
 subprocess.check_call(sudo_cmd)
