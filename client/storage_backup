@@ -121,7 +121,8 @@ if args.dryrun:
 if not args.nowake:
 	if args.verbose:
 		print("Waking up storage server: %s" % (config["wakeup_uri"]), file = sys.stderr)
-	subprocess.check_call([ "curl", "--cacert", config["CA_filename"], "--tlsv1.2", "--cert-type", "P12", "--cert", config["client_cert_p12"], config["wakeup_uri"] ], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+	redirect = None if (args.verbose) else subprocess.DEVNULL
+	subprocess.check_call([ "curl", "--cacert", config["CA_filename"], "--tlsv1.2", "--cert-type", "P12", "--cert", config["client_cert_p12"], config["wakeup_uri"] ], stdout = redirect, stderr = redirect)
 
 if args.verbose:
 	print("Waiting for storage server to become available: sftp %s@%s:%d" % (config["username"], config["storage_fqdn"], config["storage_port"]), file = sys.stderr)
