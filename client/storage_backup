@@ -92,7 +92,11 @@ if not os.path.isfile(config["passphrase_file"]):
 if config.get("ssh_add") is not None:
 	need_pubkey = config["ssh_add"]
 	found_pubkeys = set()
-	for line in subprocess.check_output([ "ssh-add", "-l" ]).decode().split("\n"):
+	try:
+		identities = subprocess.check_output([ "ssh-add", "-l" ])
+	except subprocess.CalledProcessError:
+		identities = b""
+	for line in identities.decode().split("\n"):
 		line = line.split()
 		if len(line) >= 2:
 			found_pubkeys.add(line[1])
