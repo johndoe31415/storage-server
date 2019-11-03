@@ -22,18 +22,56 @@
 
 import sys
 import os
+import re
+import subprocess
 
-files = [
-	"/usr/bin/rssh",
-	"/usr/bin/scp",
-	"/etc/passwd",
+files = set([
+	"/dev/null",
 	"/etc/group",
 	"/etc/hosts",
+	"/etc/ld.so.cache",
+	"/etc/ld.so.conf",
+	"/etc/nsswitch.conf",
+	"/etc/passwd",
 	"/etc/resolv.conf",
+])
+executables = [
+#	"/bin/bash",		# Testing only
+	"/usr/bin/rssh",
+	"/usr/bin/rsync",
+	"/usr/bin/scp",
+	"/usr/lib/openssh/sftp-server",
 ]
 outdir = sys.argv[1]
 if not os.path.isdir(outdir):
 	print("Not a directory: %s" % (outdir))
 	sys.exit(1)
+
+def add_recursively(filelist, filename):
+	filelist.add(filename)
+	if os.path.islink(filename):		
+		target = os.readlink(filename)
+		if target.startswith("/"):
+			# Absolute link
+			add_recursively(filelist, target)
+		else:
+			# Relative link
+			abs_target = os.path.dirname(filename) +"/" + target
+			add_recursively(filelist, abs_target)
+
+files |= set(executables)
+ldd_re = re.compile(r"^\s*(?P<base>\S+)(\s+=>\s+(?P<target>\S+))?", flags = re.MULTILINE)
+for executable in executables:
+	ldd = subprocess.check_output([ "ldd", executable ])
+	ldd = ldd.decode()
+	for match in ldd_re.finditer(ldd):
+		match = match.groupdict()
+		if match["target"] is not None:
+			add_recursively(files, match["target"])
+		elif match["base"].startswith("/"):
+			add_recursively(files, match["base"])
+
+files = list(sorted(files))
 cmd = [ "rsync", "-aR" ] + files + [ outdir ]
+#print(cmd)
 subprocess.check_call(cmd)
