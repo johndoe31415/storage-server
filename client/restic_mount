@@ -1,0 +1,101 @@
+#!/usr/bin/python3
+#	storage-server - Integrated remote backup solution
+#	Copyright (C) 2019-2020 Johannes Bauer
+#
+#	This file is part of storage-server.
+#
+#	storage-server is free software; you can redistribute it and/or modify
+#	it under the terms of the GNU General Public License as published by
+#	the Free Software Foundation; this program is ONLY licensed under
+#	version 3 of the License, later versions are explicitly excluded.
+#
+#	storage-server is distributed in the hope that it will be useful,
+#	but WITHOUT ANY WARRANTY; without even the implied warranty of
+#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#	GNU General Public License for more details.
+#
+#	You should have received a copy of the GNU General Public License
+#	along with storage-server; if not, write to the Free Software
+#	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#	Johannes Bauer <JohannesBauer@gmx.de>
+
+import sys
+import os
+import json
+import time
+import subprocess
+import collections
+from FriendlyArgumentParser import FriendlyArgumentParser
+from Suspend import Suspend
+
+default_config_filename = os.path.realpath(os.path.expanduser("~/.config/jbin/backup/storage_backup.json"))
+parser = FriendlyArgumentParser()
+parser.add_argument("--nowake", action = "store_true", help = "Do not try to wake up storage server, just run the backup.")
+parser.add_argument("-c", "--config", metavar = "filename", type = str, default = default_config_filename, help = "Specifies configuration file. Defaults to %(default)s.")
+parser.add_argument("-v", "--verbose", action = "store_true", help = "Be more verbose about what is happening.")
+parser.add_argument("mountpoint", help = "Where to mount the restic repository to.")
+args = parser.parse_args(sys.argv[1:])
+
+with open(args.config, "r") as f:
+	config = json.load(f)
+
+config["CA_filename"] = os.path.realpath(os.path.expanduser(config["CA_filename"]))
+config["client_cert_p12"] = os.path.realpath(os.path.expanduser(config["client_cert_p12"]))
+config["passphrase_file"] = os.path.realpath(os.path.expanduser(config["passphrase_file"]))
+
+# Unlock our key first so the user can go away
+if config.get("ssh_add") is not None:
+	need_pubkey = config["ssh_add"]
+	found_pubkeys = set()
+	try:
+		identities = subprocess.check_output([ "ssh-add", "-l" ])
+	except subprocess.CalledProcessError:
+		identities = b""
+	for line in identities.decode().split("\n"):
+		line = line.split()
+		if len(line) >= 2:
+			found_pubkeys.add(line[1])
+
+	if need_pubkey not in found_pubkeys:
+		subprocess.check_call([ "ssh-add" ])
+
+# Wake up machine.
+if not args.nowake:
+	if args.verbose:
+		print("Waking up storage server: %s" % (config["wakeup_uri"]), file = sys.stderr)
+	redirect = None if (args.verbose) else subprocess.DEVNULL
+	subprocess.check_call([ "curl", "--cacert", config["CA_filename"], "--tlsv1.2", "--cert-type", "P12", "--cert", config["client_cert_p12"], config["wakeup_uri"] ], stdout = redirect, stderr = redirect)
+
+if args.verbose:
+	print("Waiting for storage server to become available: sftp %s@%s:%d" % (config["username"], config["storage_fqdn"], config["storage_port"]), file = sys.stderr)
+timeout = time.time() + config["max_wait_for_storage_secs"]
+host_up = False
+while time.time() < timeout:
+	try:
+		if args.verbose:
+			t = time.time()
+			print("Checking for sftp availability of %s:%d (%.0f more seconds until timeout)..." % (config["storage_fqdn"], config["storage_port"], timeout - t), file = sys.stderr)
+		output = subprocess.check_output([ "sftp", "-P", str(config["storage_port"]), "%s@%s" % (config["username"], config["storage_fqdn"]) ], input = ("ls '%s'\n" % (config["remote_path"])).encode("utf-8"), stderr = subprocess.DEVNULL)
+		output = output.decode("utf-8").split("\n")
+		for line in output:
+			if line.startswith("Can't ls"):
+				if args.verbose:
+					print("Could connect to sftp, but remote directory '%s' wasn't available." % (config["remote_path"]), file = sys.stderr)
+				break
+		else:
+			# ls worked, host is up!
+			host_up = True
+		break
+	except subprocess.CalledProcessError:
+		# Not up yet. Try again.
+		if args.verbose:
+			print("Could not connect to sftp. Storage probably not up yet.", file = sys.stderr)
+		time.sleep(3)
+
+if not host_up:
+	print("Could not wake %s after %d seconds." % (config["storage_fqdn"], config["max_wait_for_storage_secs"]), file = sys.stderr)
+	sys.exit(1)
+
+cmdline = [ config["restic_bin"], "mount", "-r", "sftp://%s@%s:%d/%s" % (config["username"], config["storage_fqdn"], config["storage_port"], config["remote_path"]), args.mountpoint ]
+subprocess.check_call(cmdline)
