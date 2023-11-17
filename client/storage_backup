@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 #	storage-server - Integrated remote backup solution
-#	Copyright (C) 2019-2021 Johannes Bauer
+#	Copyright (C) 2019-2023 Johannes Bauer
 #
 #	This file is part of storage-server.
 #
@@ -24,6 +24,7 @@ import sys
 import os
 import json
 import time
+import requests
 import subprocess
 import collections
 from FriendlyArgumentParser import FriendlyArgumentParser
@@ -60,6 +61,7 @@ if not os.path.isfile(args.config):
 		("excludes",					[ "/proc", "/sys", "/dev", "/var/cache/apt/archives", "/run/user", "/tmp", "/mnt", "/media" ]),
 		("backup_path",					"/"),
 		("ssh_add",						"SHA256:ZMJt/plj7919DQI6Jg2P3RD4+ff6bBto+DI5W908A/w"),
+		("success_heartbeat_uri",		"https://hc-ping.com/11111111-1111-1111-1111-111111111111"),
 	])
 	with open(args.config, "w") as f:
 		json.dump(default_config, f, sort_keys = False, indent = 4)
@@ -73,14 +75,17 @@ if "REMOVE_BEFORE_USAGE" in config:
 	print("Remember to remove the 'REMOVE_BEFORE_USAGE' key.")
 	sys.exit(1)
 
-config["CA_filename"] = os.path.realpath(os.path.expanduser(config["CA_filename"]))
-config["client_cert_p12"] = os.path.realpath(os.path.expanduser(config["client_cert_p12"]))
-config["passphrase_file"] = os.path.realpath(os.path.expanduser(config["passphrase_file"]))
+if "CA_filename" in config:
+	config["CA_filename"] = os.path.realpath(os.path.expanduser(config["CA_filename"]))
+if "client_cert_p12" in config:
+	config["client_cert_p12"] = os.path.realpath(os.path.expanduser(config["client_cert_p12"]))
+if "passphrase_file" in config:
+	config["passphrase_file"] = os.path.realpath(os.path.expanduser(config["passphrase_file"]))
 
-if not os.path.isfile(config["CA_filename"]):
+if ("CA_filename" in config) and (not os.path.isfile(config["CA_filename"])):
 	print("Root CA file does not exist: %s" % (config["CA_filename"]))
 	sys.exit(1)
-if not os.path.isfile(config["client_cert_p12"]):
+if ("client_cert_p12" in config) and (not os.path.isfile(config["client_cert_p12"])):
 	print("Client certificate PKCS#12 file does not exist: %s" % (config["client_cert_p12"]))
 	sys.exit(1)
 if not os.path.isfile(config["passphrase_file"]):
@@ -105,7 +110,7 @@ if config.get("ssh_add") is not None:
 		subprocess.check_call([ "ssh-add" ])
 
 # This is the command we would want to execute
-cmdline = [ config["restic_bin"], "backup", "-p", config["passphrase_file"], "-r", "sftp://%s@%s:%d/%s" % (config["username"], config["storage_fqdn"], config["storage_port"], config["remote_path"]) ]
+cmdline = [ config["restic_bin"], "backup", "-p", config["passphrase_file"], "-r", "sftp://%s@%s:%d/%s" % (config["username"], config["storage_fqdn"], config.get("storage_port", 22), config["remote_path"]) ]
 if "hostname" in config:
 	cmdline += [ "-H", config["hostname"] ]
 if "excludes" in config:
@@ -125,46 +130,51 @@ if args.dryrun:
 
 
 # Wake up machine.
-if not args.nowake:
+if (not args.nowake) and ("CA_filename" in config) and ("client_cert_p12" in config):
 	if args.verbose:
 		print("Waking up storage server: %s" % (config["wakeup_uri"]), file = sys.stderr)
 	redirect = None if (args.verbose) else subprocess.DEVNULL
 	subprocess.check_call([ "curl", "--cacert", config["CA_filename"], "--tlsv1.2", "--cert-type", "P12", "--cert", config["client_cert_p12"], config["wakeup_uri"] ], stdout = redirect, stderr = redirect)
 
-if args.verbose:
-	print("Waiting for storage server to become available: sftp %s@%s:%d" % (config["username"], config["storage_fqdn"], config["storage_port"]), file = sys.stderr)
-timeout = time.time() + config["max_wait_for_storage_secs"]
-host_up = False
-while time.time() < timeout:
-	try:
-		if args.verbose:
-			t = time.time()
-			print("Checking for sftp availability of %s:%d (%.0f more seconds until timeout)..." % (config["storage_fqdn"], config["storage_port"], timeout - t), file = sys.stderr)
-		output = subprocess.check_output([ "sftp", "-P", str(config["storage_port"]), "%s@%s" % (config["username"], config["storage_fqdn"]) ], input = ("ls '%s'\n" % (config["remote_path"])).encode("utf-8"), stderr = subprocess.DEVNULL)
-		output = output.decode("utf-8").split("\n")
-		for line in output:
-			if line.startswith("Can't ls"):
-				if args.verbose:
-					print("Could connect to sftp, but remote directory '%s' wasn't available." % (config["remote_path"]), file = sys.stderr)
-				break
-		else:
-			# ls worked, host is up!
-			host_up = True
-		break
-	except subprocess.CalledProcessError:
-		# Not up yet. Try again.
-		if args.verbose:
-			print("Could not connect to sftp. Storage probably not up yet.", file = sys.stderr)
-		time.sleep(3)
+if "max_wait_for_storage_secs" in config:
+	if args.verbose:
+		print("Waiting for storage server to become available: sftp %s@%s:%d" % (config["username"], config["storage_fqdn"], config["storage_port"]), file = sys.stderr)
+	timeout = time.time() + config["max_wait_for_storage_secs"]
+	host_up = False
+	while time.time() < timeout:
+		try:
+			if args.verbose:
+				t = time.time()
+				print("Checking for sftp availability of %s:%d (%.0f more seconds until timeout)..." % (config["storage_fqdn"], config["storage_port"], timeout - t), file = sys.stderr)
+			output = subprocess.check_output([ "sftp", "-P", str(config["storage_port"]), "%s@%s" % (config["username"], config["storage_fqdn"]) ], input = ("ls '%s'\n" % (config["remote_path"])).encode("utf-8"), stderr = subprocess.DEVNULL)
+			output = output.decode("utf-8").split("\n")
+			for line in output:
+				if line.startswith("Can't ls"):
+					if args.verbose:
+						print("Could connect to sftp, but remote directory '%s' wasn't available." % (config["remote_path"]), file = sys.stderr)
+					break
+			else:
+				# ls worked, host is up!
+				host_up = True
+			break
+		except subprocess.CalledProcessError:
+			# Not up yet. Try again.
+			if args.verbose:
+				print("Could not connect to sftp. Storage probably not up yet.", file = sys.stderr)
+			time.sleep(3)
 
-if not host_up:
-	print("Could not wake %s after %d seconds." % (config["storage_fqdn"], config["max_wait_for_storage_secs"]), file = sys.stderr)
-	sys.exit(1)
+	if not host_up:
+		print("Could not wake %s after %d seconds." % (config["storage_fqdn"], config["max_wait_for_storage_secs"]), file = sys.stderr)
+		sys.exit(1)
 
 sudo_cmd = [ "sudo", "-S", "-u", "root" ] + cmdline
-try:
-	subprocess.check_call(sudo_cmd, stdin = subprocess.DEVNULL)
-except subprocess.CalledProcessError:
+result = subprocess.run(sudo_cmd, stdin = subprocess.DEVNULL)
+if result.returncode == 0:
+	if "success_heartbeat_uri" in config:
+		# Notify the heartbeat server of the successful backup
+		requests.get(config["success_heartbeat_uri"])
+elif result.returncode == 1:
+	# Fatal error, no snapshot created.
 	cmdline_str = " ".join(cmdline)
 	sudoers_line = "%s ALL=NOPASSWD: %s" % (os.environ.get("USER", "user"), cmdline_str.replace(":", r"\:"))
 	print("sudo command failed. Check the following line in /etc/sudoers")
