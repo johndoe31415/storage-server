@@ -1,0 +1,52 @@
+#!/usr/bin/python3
+#	storage-server - Integrated remote backup solution
+#	Copyright (C) 2019-2023 Johannes Bauer
+#
+#	This file is part of storage-server.
+#
+#	storage-server is free software; you can redistribute it and/or modify
+#	it under the terms of the GNU General Public License as published by
+#	the Free Software Foundation; this program is ONLY licensed under
+#	version 3 of the License, later versions are explicitly excluded.
+#
+#	storage-server is distributed in the hope that it will be useful,
+#	but WITHOUT ANY WARRANTY; without even the implied warranty of
+#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#	GNU General Public License for more details.
+#
+#	You should have received a copy of the GNU General Public License
+#	along with storage-server; if not, write to the Free Software
+#	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#	Johannes Bauer <JohannesBauer@gmx.de>
+
+import sys
+import os
+import pwd
+import json
+import subprocess
+import argparse
+from FriendlyArgumentParser import FriendlyArgumentParser
+
+parser = FriendlyArgumentParser()
+parser.add_argument("-u", "--username", metavar = "username", help = "Read configuration file from this user's home directory. Defaults to local users home directory.")
+parser.add_argument("-c", "--config", metavar = "filename", default = "~/.config/jbin/backup/storage_backup.json", help = "Specifies configuration file. Without the --username argument defaults to %(default)s.")
+parser.add_argument("-v", "--verbose", action = "store_true", help = "Be more verbose about what is happening.")
+parser.add_argument("cmds", nargs = argparse.REMAINDER, help = "Restic commands to run.")
+args = parser.parse_args(sys.argv[1:])
+
+if args.username is None:
+	config_filename = os.path.realpath(os.path.expanduser(args.config))
+else:
+	homedir = pwd.getpwnam(args.username).pw_dir
+	config_filename = os.path.realpath(args.config.replace("~", homedir))
+
+if args.verbose >= 1:
+	print(f"Using config file: {config_filename}")
+with open(config_filename, "r") as f:
+	config = json.load(f)
+
+cmdline = [ config["restic_bin"], "-r", "sftp://%s@%s:%d/%s" % (config["username"], config["storage_fqdn"], config.get("storage_port", 22), config["remote_path"]), "--password-file", config["passphrase_file"] ] + args.cmds
+if args.verbose >= 1:
+	print(f"Executing: {cmdline}")
+subprocess.call(cmdline)
